@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment
+.env
+
+# Data & models (large/binary artifacts, not checked into core)
+data/
+models/*.pkl
+models/*.joblib
+
+# Local RiskScore store
+*.db
+
+# Editors
+.vscode/
+.idea/

@@ -107,8 +107,8 @@ graph TB
 - **detection/model_inference.py**: Real-time risk scoring
 - **detection/shap_explainer.py**: SHAP-based interpretability layer
 
-The Soroban contract, REST API, and dashboard live in the
-`hedge-rod-contracts`, `hedge-rod-api`, and `hedge-rod-dashboard` repos
+The REST API ships in this repo under `api/`. The Soroban contract and the web
+dashboard live in the `hedge-rod-contract` and `hedge-rod-frontend` repos
 respectively — see [HEDGE-ROD Organization](#hedge-rod-organization).
 
 ## Benford's Law on the Blockchain
@@ -206,12 +206,12 @@ After each pipeline run, all `RiskScore` records above `RISK_SCORE_THRESHOLD` ar
 
 ## Repository Structure
 
-This repository (`hedge-rod-core`) contains only the detection engine. The
-API, dashboard, and Soroban contract live in separate repos — see
-[HEDGE-ROD Organization](#hedge-rod-organization) below.
+This repository (`hedge-rod-backend`) contains the detection engine and the
+public REST API. The web dashboard and Soroban contract live in separate
+repos — see [HEDGE-ROD Organization](#hedge-rod-organization) below.
 
 ```
-hedge-rod-core/
+hedge-rod-backend/
 │
 ├── README.md                         ← This file
 ├── requirements.txt                  ← Python dependencies
@@ -269,7 +269,7 @@ Fill in the Horizon, model, and cross-repo settings described in
 
 ### 3. Train on synthetic data
 
-No labelled dataset from `hedge-rod-data` is required to get started —
+No external labelled dataset is required to get started —
 `cli.py train` generates a synthetic trade history with labelled
 wash-trading rings (`ingestion/synthetic_data.py`) and trains the
 RF/XGBoost/LightGBM ensemble on it:
@@ -294,12 +294,11 @@ python cli.py serve --reload
 ```
 
 Exposes `/health`, `/scores`, `/scores/{wallet}`, `/alerts`, and
-`/assets/risk-ranking` over the locally stored `RiskScore` records — a
-stand-in for `hedge-rod-api` during local development.
+`/assets/risk-ranking` over the locally stored `RiskScore` records. This is
+the project's REST API, consumed directly by `hedge-rod-frontend`.
 
-> The production API, dashboard, and Soroban contract live in their
-> respective repos (`hedge-rod-api`, `hedge-rod-dashboard`,
-> `hedge-rod-contracts`).
+> The web dashboard and Soroban contract live in their respective repos
+> (`hedge-rod-frontend`, `hedge-rod-contract`).
 
 ### Docker
 
@@ -408,7 +407,7 @@ For production deployments, schedule retrain checks via cron or systemd timer:
 
 **Cron example (daily at 2 AM):**
 ```cron
-0 2 * * * cd /path/to/hedge-rod-core && python cli.py retrain-check >> /var/log/hedge-rod-retrain.log 2>&1
+0 2 * * * cd /path/to/hedge-rod-backend && python cli.py retrain-check >> /var/log/hedge-rod-retrain.log 2>&1
 ```
 
 **Systemd timer example:**
@@ -421,7 +420,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/path/to/hedge-rod-core
+WorkingDirectory=/path/to/hedge-rod-backend
 ExecStart=/usr/bin/python cli.py retrain-check
 StandardOutput=journal
 StandardError=journal
@@ -630,7 +629,7 @@ Covers:
 - [x] SHAP interpretability integration
 - [ ] Soroban smart contract deployment on Testnet
 - [x] Local REST API (v1, read-only) — see `api/main.py`
-- [ ] Public REST API with rate limiting (`hedge-rod-api`)
+- [ ] Public REST API with rate limiting (hardening of `api/`)
 - [ ] Web dashboard (beta)
 
 ### Phase 3 — Ecosystem Integration *(Months 5–6)*
@@ -685,47 +684,40 @@ Quick checklist for contributions:
 
 ## HEDGE-ROD Organization
 
-This repo is one of six in the HEDGE-ROD organization. If a change here
+This repo is one of **three** in the HEDGE-ROD organization. If a change here
 touches a shared contract (below), call it out so the matching repo can be
 updated.
 
 | Repo | Role | Primary language |
 |---|---|---|
-| **`.github`** | Org-wide GitHub config: shared workflows, issue/PR templates, CODEOWNERS, reusable CI actions | YAML |
-| **`hedge-rod-data`** | Canonical storage for raw + processed trade data and labelled training datasets used by `core` for model training | SQL / Python |
-| **`hedge-rod-core`** *(this repo)* | Detection engine: Horizon ingestion, Benford's Law analysis, ML feature engineering, ensemble training/inference, SHAP explanations, `RiskScore` computation | Python |
-| **`hedge-rod-api`** | Public REST API (FastAPI). Serves `RiskScore` records produced by `core`, exposes `/score`, `/alerts`, `/assets/risk-ranking`, and forwards confirmed scores to `hedge-rod-contracts` | Python (FastAPI) |
-| **`hedge-rod-dashboard`** | Web dashboard consuming `hedge-rod-api`. Visualizes risk scores, SHAP explanations, and asset risk rankings | TypeScript / React |
-| **`hedge-rod-contracts`** | Soroban smart contract(s) — the on-chain risk registry (`hedge-rod-score`). Exposes `submit_score` / `get_score` for composability with other Stellar protocols | Rust (Soroban) |
+| **`hedge-rod-backend`** *(this repo)* | Detection engine **and** public REST API: Horizon ingestion, Benford's Law analysis, ML feature engineering, ensemble training/inference, SHAP explanations, `RiskScore` computation, the FastAPI service (`/score`, `/alerts/recent`, `/assets/risk-ranking`), and on-chain publishing to the contract | Python (FastAPI) |
+| **`hedge-rod-frontend`** | Web dashboard consuming `hedge-rod-backend`. Visualizes risk scores, SHAP explanations, recent alerts, and asset risk rankings | HTML / CSS / JS (vanilla) |
+| **`hedge-rod-contract`** | Soroban smart contract — the on-chain risk registry (`hedge-rod-score`). Exposes `submit_score` / `get_score` for composability with other Stellar protocols | Rust (Soroban) |
 
 ### Data Flow
 
 ```
-hedge-rod-data  ──(labelled datasets)──▶  hedge-rod-core
-                                              │
-                  Horizon API ──(trades)──▶  │  (ingestion + detection)
-                                              │
-                                              ▼
-                                    RiskScore records
-                                              │
-                       ┌──────────────────────┴──────────────────────┐
-                       ▼                                              ▼
-              hedge-rod-api (REST)                      hedge-rod-contracts (Soroban)
-                       │                                              │
-                       ▼                                              ▼
-              hedge-rod-dashboard                     other Stellar protocols
-                                                        (AMMs, lending, aggregators)
+       Horizon API ──(trades)──▶  hedge-rod-backend
+                                       │  (ingestion + detection + REST API)
+                                       ▼
+                              RiskScore records
+                                       │
+                ┌──────────────────────┴──────────────────────┐
+                ▼                                              ▼
+       hedge-rod-frontend                        hedge-rod-contract (Soroban)
+         (dashboard)                                          │
+                                                              ▼
+                                                other Stellar protocols
+                                                (AMMs, lending, aggregators)
 ```
 
-1. **`hedge-rod-data`** stores raw Horizon trade history and labelled wash-trade examples. `core`'s `ingestion/historical_loader.py` reads from (or writes new snapshots to) this repo for model training.
-2. **`hedge-rod-core`** (this repo) runs `run_pipeline.py`: `ingestion/` pulls trades from Horizon, `detection/feature_engineering.py` computes Benford + ML features, `detection/model_inference.py` scores with the trained ensemble, and `detection/risk_score.py` produces a `RiskScore` record.
-3. **`hedge-rod-api`** receives `RiskScore` records from `core` (via a shared queue/DB or direct call — see "Open Integration Points"), exposes them over REST, and forwards scores above `RISK_SCORE_THRESHOLD` to `hedge-rod-contracts` via `submit_score`.
-4. **`hedge-rod-contracts`** persists the score on-chain via the `hedge-rod-score` Soroban contract, making it queryable by any other Soroban contract via `get_score`.
-5. **`hedge-rod-dashboard`** calls `hedge-rod-api` to render scores, alerts, and SHAP-based explanations.
+1. **`hedge-rod-backend`** (this repo) runs `run_pipeline.py`: `ingestion/` pulls trades from the Stellar Horizon API, `detection/feature_engineering.py` computes Benford + ML features, `detection/model_inference.py` scores with the trained ensemble, and `detection/risk_score.py` produces a `RiskScore` record. The bundled FastAPI service (`api/main.py`) exposes those records over REST, and `detection/soroban_publisher.py` forwards scores above `RISK_SCORE_THRESHOLD` to the contract via `submit_score`.
+2. **`hedge-rod-frontend`** calls the backend API to render scores, alerts, and SHAP-based explanations.
+3. **`hedge-rod-contract`** persists the score on-chain via the `hedge-rod-score` Soroban contract, making it queryable by any other Soroban contract via `get_score`.
 
 ### Shared Contracts (must stay in sync across repos)
 
-**1. `RiskScore` schema** — defined here at `detection/risk_score.py`, mirrored by `hedge-rod-api`'s response models and `hedge-rod-contracts`'s on-chain `RiskScore` struct (`contracts/hedge-rod-score/src/lib.rs`):
+**1. `RiskScore` schema** — defined here at `detection/risk_score.py`, served by this repo's FastAPI response models (`api/main.py`) and mirrored by `hedge-rod-contract`'s on-chain `RiskScore` struct (`contracts/hedge-rod-score/src/lib.rs`):
 
 ```python
 class RiskScore:
@@ -738,33 +730,30 @@ class RiskScore:
     timestamp: datetime
 ```
 
-If you change a field name, type, or range here, update the Rust struct in `hedge-rod-contracts` and the Pydantic response models in `hedge-rod-api` in the same change set (or open a tracked follow-up in each repo).
+If you change a field name, type, or range here, update the Rust struct in `hedge-rod-contract` in the same change set (or open a tracked follow-up).
 
-**2. Trade / Asset schema** — defined here at `ingestion/data_models.py` (`Trade`, `Asset`, `OrderBookEvent`). `hedge-rod-data` persists records in this shape; changing field names here requires a migration note for `hedge-rod-data`.
+**2. Trade / Asset schema** — defined here at `ingestion/data_models.py` (`Trade`, `Asset`, `OrderBookEvent`). These shape the records persisted by this repo's storage layer (`detection/storage.py`).
 
-**3. Environment variables / config keys** — `.env.example` defines the cross-repo keys:
-- `HEDGE_ROD_API_URL` — where `core` publishes scores
-- `HEDGE_ROD_SCORE_CONTRACT_ID` — the deployed Soroban contract id (also used by `hedge-rod-api` and `hedge-rod-contracts`)
-- `HEDGE_ROD_SERVICE_SECRET_KEY` — the Soroban service account authorized to call `submit_score` (never commit; only `core`/`api` need this)
-- `RISK_SCORE_THRESHOLD` — score above which `api` pushes to the contract
+**3. Environment variables / config keys** — `.env.example` defines the keys shared with the contract:
+- `HEDGE_ROD_SCORE_CONTRACT_ID` — the deployed Soroban contract id (shared with `hedge-rod-contract`)
+- `HEDGE_ROD_SERVICE_SECRET_KEY` — the Soroban service account authorized to call `submit_score` (never commit)
+- `RISK_SCORE_THRESHOLD` — score above which the backend pushes to the contract
 
-**4. Soroban contract interface** — `hedge-rod-contracts` exposes:
+**4. Soroban contract interface** — `hedge-rod-contract` exposes:
 - `submit_score(wallet: Address, asset_pair: Symbol, score: u32, timestamp: u64)`
 - `get_score(wallet: Address, asset_pair: Symbol) -> RiskScore`
 
-`core` and `api` must call `submit_score` with `score` already clamped to 0-100 (see `RiskScore.combine` in `detection/risk_score.py`).
+The backend must call `submit_score` with `score` already clamped to 0-100 (see `RiskScore.combine` in `detection/risk_score.py`).
 
 ### Open Integration Points (not yet implemented)
 
-- How `core` hands `RiskScore` records to `api` (direct DB write, message queue, or `core` calling an `api` ingestion endpoint) — see `run_pipeline.py`.
-- Where labelled training data lives in `hedge-rod-data` and its schema version — see `detection/model_training.py`.
 - Order-book event ingestion (needed for `round_trip_trade_frequency`, cancellation-rate features) — see TODOs in `detection/feature_engineering.py`.
 
 ### Conventions for AI Agents
 
 - Treat this section as the source of truth for **cross-repo** contracts. Each repo's own README covers repo-local conventions.
 - When a change in this repo affects a shared contract above, call it out explicitly so the corresponding change can be made in the other repo(s).
-- Keep `RiskScore` and `Trade`/`Asset` field names identical (same casing, same units) across Python (`core`, `api`), Rust (`contracts`), and TypeScript (`dashboard`) — translation layers are a common source of bugs.
+- Keep `RiskScore` and `Trade`/`Asset` field names identical (same casing, same units) across Python (`hedge-rod-backend`) and Rust (`hedge-rod-contract`) — translation layers are a common source of bugs.
 
 ## Support
 

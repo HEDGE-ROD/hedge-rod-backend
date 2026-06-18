@@ -1,0 +1,52 @@
+"""Central configuration loaded from environment variables (.env)."""
+
+import os
+from dataclasses import dataclass, field
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+@dataclass(frozen=True)
+class Settings:
+    horizon_url: str = field(default_factory=lambda: os.getenv("HORIZON_URL", "https://horizon.stellar.org"))
+    horizon_stream_url: str = field(default_factory=lambda: os.getenv("HORIZON_STREAM_URL", "https://horizon.stellar.org"))
+    network: str = field(default_factory=lambda: os.getenv("NETWORK", "testnet"))
+
+    poll_interval_seconds: int = field(default_factory=lambda: int(os.getenv("POLL_INTERVAL_SECONDS", "5")))
+    trade_history_lookback_days: int = field(default_factory=lambda: int(os.getenv("TRADE_HISTORY_LOOKBACK_DAYS", "30")))
+
+    benford_mad_threshold: float = field(default_factory=lambda: float(os.getenv("BENFORD_MAD_THRESHOLD", "0.015")))
+    risk_score_threshold: int = field(default_factory=lambda: int(os.getenv("RISK_SCORE_THRESHOLD", "70")))
+    ensemble_weight_rf: float = field(default_factory=lambda: float(os.getenv("ENSEMBLE_WEIGHT_RF", "0.25")))
+    ensemble_weight_xgb: float = field(default_factory=lambda: float(os.getenv("ENSEMBLE_WEIGHT_XGB", "0.50")))
+    ensemble_weight_lgbm: float = field(default_factory=lambda: float(os.getenv("ENSEMBLE_WEIGHT_LGBM", "0.25")))
+
+    model_dir: str = field(default_factory=lambda: os.getenv("MODEL_DIR", "./models"))
+    db_path: str = field(default_factory=lambda: os.getenv("LEDGERLENS_DB_PATH", "./ledgerlens.db"))
+
+    ledgerlens_api_url: str = field(default_factory=lambda: os.getenv("LEDGERLENS_API_URL", "http://localhost:8000"))
+    score_contract_id: str = field(default_factory=lambda: os.getenv("LEDGERLENS_SCORE_CONTRACT_ID", ""))
+    service_secret_key: str = field(default_factory=lambda: os.getenv("LEDGERLENS_SERVICE_SECRET_KEY", ""))
+
+    soroban_rpc_url: str = field(default_factory=lambda: os.getenv("SOROBAN_RPC_URL", "https://soroban-testnet.stellar.org"))
+    network_passphrase: str = field(default_factory=lambda: os.getenv("NETWORK_PASSPHRASE", "Test SDF Network ; September 2015"))
+    soroban_circuit_breaker_threshold: int = field(default_factory=lambda: int(os.getenv("SOROBAN_CIRCUIT_BREAKER_THRESHOLD", "5")))
+    soroban_circuit_reset_seconds: int = field(default_factory=lambda: int(os.getenv("SOROBAN_CIRCUIT_RESET_SECONDS", "300")))
+
+    admin_api_key: str = field(default_factory=lambda: os.getenv("LEDGERLENS_ADMIN_API_KEY", ""))
+
+    def __post_init__(self) -> None:
+        weights = (
+            self.ensemble_weight_rf,
+            self.ensemble_weight_xgb,
+            self.ensemble_weight_lgbm,
+        )
+        if any(weight < 0 for weight in weights):
+            raise ValueError("Ensemble weights must be non-negative")
+        if all(weight == 0 for weight in weights):
+            raise ValueError("At least one ensemble weight must be positive")
+
+
+settings = Settings()

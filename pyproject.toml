@@ -1,0 +1,20 @@
+[project]
+name = "hedge-rod-backend"
+version = "0.1.0"
+description = "Benford's Law + ensemble ML wash-trading detection engine for the Stellar DEX"
+requires-python = ">=3.10"
+
+[project.scripts]
+hedge-rod = "cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "benchmark: performance benchmarks (excluded from standard CI; run with -m benchmark)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

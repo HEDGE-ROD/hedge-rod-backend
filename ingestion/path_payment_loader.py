@@ -20,7 +20,7 @@ from ingestion.data_models import Asset, PathPayment
 from ingestion.http_client import AsyncHorizonClient, get_with_retry
 from ingestion.operations_loader import _horizon_url, _parse_datetime, _parse_float
 
-logger = logging.getLogger("ledgerlens.path_payment_loader")
+logger = logging.getLogger("hedge-rod.path_payment_loader")
 
 PAGE_LIMIT = 200
 MAX_PATH_HOPS = 8

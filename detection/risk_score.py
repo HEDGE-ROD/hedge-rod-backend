@@ -1,8 +1,8 @@
-"""The `RiskScore` schema shared with ledgerlens-api and ledgerlens-contracts.
+"""The `RiskScore` schema shared with hedge-rod-api and hedge-rod-contracts.
 
 This mirrors the on-chain `RiskScore` struct defined in the
-ledgerlens-contracts repo (`ledgerlens-score/src/lib.rs`). Keep the two in
-sync — see README.md's "LedgerLens Organization" section for the cross-repo
+hedge-rod-contracts repo (`hedge-rod-score/src/lib.rs`). Keep the two in
+sync — see README.md's "HedgeRod Organization" section for the cross-repo
 data contract.
 """
 

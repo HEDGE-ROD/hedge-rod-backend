@@ -149,12 +149,12 @@ def save_models(results: dict, model_dir: str | None = None, training_dataset_pa
         json.dump(metadata, f, indent=2)
 
     import logging
-    logger = logging.getLogger("ledgerlens.model_training")
+    logger = logging.getLogger("hedge-rod.model_training")
     logger.info("Wrote training metadata to %s", metadata_path)
 
 
 if __name__ == "__main__":
-    # The ledgerlens-data repo does not yet provide a labelled dataset, so
+    # The hedge-rod-data repo does not yet provide a labelled dataset, so
     # default to a synthetic one for local training/testing.
     import logging
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     from ingestion.synthetic_data import generate_synthetic_dataset
 
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("ledgerlens.model_training")
+    logger = logging.getLogger("hedge-rod.model_training")
 
     trades, account_metadata, order_book_events, labels = generate_synthetic_dataset(
         n_normal_accounts=60, n_wash_rings=10, ring_size=3

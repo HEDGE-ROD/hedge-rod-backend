@@ -1,6 +1,6 @@
-# Contributing to LedgerLens Core
+# Contributing to HedgeRod Core
 
-Thanks for your interest in contributing to the LedgerLens detection engine.
+Thanks for your interest in contributing to the HedgeRod detection engine.
 
 ## Getting started
 
@@ -28,5 +28,5 @@ pytest
 If a change affects the `RiskScore` schema, the `Trade`/`Asset`/`OrderBookEvent`
 schemas, or any of the environment variables listed in `.env.example`, call
 this out in your PR description — these are shared contracts with
-`ledgerlens-api`, `ledgerlens-contracts`, and `ledgerlens-dashboard`. See the
-"LedgerLens Organization" section of `README.md` for details.
+`hedge-rod-api`, `hedge-rod-contracts`, and `hedge-rod-dashboard`. See the
+"HedgeRod Organization" section of `README.md` for details.

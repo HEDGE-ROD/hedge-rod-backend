@@ -1,11 +1,11 @@
 """Local read-only API for `RiskScore` records produced by `run_pipeline.py`.
 
-This is a lightweight stand-in for the `ledgerlens-api` repo, useful for
+This is a lightweight stand-in for the `hedge-rod-api` repo, useful for
 local development and demos: it serves whatever has been written to the
 local SQLite store (`detection.storage`) by `run_pipeline.py` or
-`cli.py score`. `ledgerlens-api` will eventually own the canonical,
+`cli.py score`. `hedge-rod-api` will eventually own the canonical,
 production version of these endpoints (`/score`, `/alerts`,
-`/assets/risk-ranking`) — see README's "LedgerLens Organization" section.
+`/assets/risk-ranking`) — see README's "HedgeRod Organization" section.
 
 Also exposes webhook subscriber management endpoints.
 
@@ -36,7 +36,7 @@ from detection.storage import (
 from detection.webhook_queue import get_dead_letters
 from detection.webhook_registry import deactivate_subscriber, list_subscribers, register_subscriber
 
-logger = logging.getLogger("ledgerlens.api")
+logger = logging.getLogger("hedge-rod.api")
 
 # ---------------------------------------------------------------------------
 # Model loading — done once at startup so request handlers stay fast.

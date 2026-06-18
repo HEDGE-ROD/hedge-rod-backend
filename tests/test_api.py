@@ -12,13 +12,13 @@ from detection.storage import save_scores
 @pytest.fixture(autouse=True)
 def webhook_env(monkeypatch):
     key = base64.b64encode(os.urandom(32)).decode()
-    monkeypatch.setenv("LEDGERLENS_WEBHOOK_ENCRYPTION_KEY", key)
+    monkeypatch.setenv("HEDGE_ROD_WEBHOOK_ENCRYPTION_KEY", key)
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    db_path = str(tmp_path / "ledgerlens.db")
-    monkeypatch.setenv("LEDGERLENS_DB_PATH", db_path)
+    db_path = str(tmp_path / "hedge-rod.db")
+    monkeypatch.setenv("HEDGE_ROD_DB_PATH", db_path)
 
     import config.settings as settings_module
 
@@ -444,8 +444,8 @@ def client_with_models(tmp_path, monkeypatch):
     """TestClient whose lifespan loads a dummy (but non-empty) models dict."""
     import importlib
 
-    db_path = str(tmp_path / "ledgerlens.db")
-    monkeypatch.setenv("LEDGERLENS_DB_PATH", db_path)
+    db_path = str(tmp_path / "hedge-rod.db")
+    monkeypatch.setenv("HEDGE_ROD_DB_PATH", db_path)
 
     import config.settings as settings_module
 
@@ -471,8 +471,8 @@ def client_no_models(tmp_path, monkeypatch):
     """TestClient whose lifespan finds no models (load_models raises FileNotFoundError)."""
     import importlib
 
-    db_path = str(tmp_path / "ledgerlens.db")
-    monkeypatch.setenv("LEDGERLENS_DB_PATH", db_path)
+    db_path = str(tmp_path / "hedge-rod.db")
+    monkeypatch.setenv("HEDGE_ROD_DB_PATH", db_path)
 
     import config.settings as settings_module
 
@@ -560,7 +560,7 @@ def test_drift_reports_403_when_header_wrong(client, monkeypatch):
 
     object.__setattr__(settings_module.settings, "admin_api_key", "secret-key")
 
-    resp = client.get("/admin/drift-reports", headers={"X-LedgerLens-Admin-Key": "wrong"})
+    resp = client.get("/admin/drift-reports", headers={"X-Hedge-Rod-Admin-Key": "wrong"})
     assert resp.status_code == 403
 
 
@@ -578,7 +578,7 @@ def test_drift_reports_returns_saved_reports(client, monkeypatch):
         db_path=storage_module.settings.db_path,
     )
 
-    resp = client.get("/admin/drift-reports", headers={"X-LedgerLens-Admin-Key": "secret-key"})
+    resp = client.get("/admin/drift-reports", headers={"X-Hedge-Rod-Admin-Key": "secret-key"})
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
@@ -617,7 +617,7 @@ def test_retrain_runs_returns_saved_runs_filtered_by_model(client, monkeypatch):
 
     resp = client.get(
         "/admin/retrain-runs?model_name=random_forest",
-        headers={"X-LedgerLens-Admin-Key": "secret-key"},
+        headers={"X-Hedge-Rod-Admin-Key": "secret-key"},
     )
     assert resp.status_code == 200
     body = resp.json()

@@ -1,6 +1,6 @@
 """SQLite-backed persistence for `RiskScore` records and on-chain submission audit log.
 
-`ledgerlens-api` will eventually own the canonical score store; until that
+`hedge-rod-api` will eventually own the canonical score store; until that
 integration point is wired up (see README's "Open Integration Points"),
 `run_pipeline.py` and the local API (`api/main.py`) persist and read
 `RiskScore` records here.

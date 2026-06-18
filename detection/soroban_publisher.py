@@ -1,6 +1,6 @@
 """Soroban on-chain score publisher.
 
-Submits RiskScore records to the ledgerlens-score Soroban contract,
+Submits RiskScore records to the hedge-rod-score Soroban contract,
 making wash-trading scores natively queryable by other Soroban contracts
 (AMMs, lending protocols, DEX aggregators).
 """
@@ -18,7 +18,7 @@ from stellar_sdk.operation import InvokeContractFunction
 from detection.risk_score import RiskScore
 from detection.storage import save_submission
 
-logger = logging.getLogger("ledgerlens.soroban")
+logger = logging.getLogger("hedge-rod.soroban")
 
 
 class SorobanSubmissionError(Exception):
@@ -30,7 +30,7 @@ class SorobanCircuitOpenError(Exception):
 
 
 class SorobanPublisher:
-    """Publishes RiskScore records on-chain via the ledgerlens-score contract.
+    """Publishes RiskScore records on-chain via the hedge-rod-score contract.
 
     Handles transaction construction, fee estimation via simulate_transaction,
     sequence-number management with tx_bad_seq retry, INSUFFICIENT_FEE retry,

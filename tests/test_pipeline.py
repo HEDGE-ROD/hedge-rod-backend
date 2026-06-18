@@ -35,7 +35,7 @@ def model_dir(tmp_path, monkeypatch):
     import config.settings as settings_module
 
     object.__setattr__(settings_module.settings, "model_dir", str(model_path))
-    object.__setattr__(settings_module.settings, "db_path", str(tmp_path / "ledgerlens.db"))
+    object.__setattr__(settings_module.settings, "db_path", str(tmp_path / "hedge-rod.db"))
     return str(model_path)
 
 

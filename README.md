@@ -172,8 +172,8 @@ After each pipeline run, all `RiskScore` records above `RISK_SCORE_THRESHOLD` ar
 
 | Variable | Purpose |
 |---|---|
-| `LEDGERLENS_SCORE_CONTRACT_ID` | Soroban contract ID of the deployed `hedge-rod-score` contract |
-| `LEDGERLENS_SERVICE_SECRET_KEY` | **Secret**: Stellar account key authorized to call `submit_score()` on the contract |
+| `HEDGE_ROD_SCORE_CONTRACT_ID` | Soroban contract ID of the deployed `hedge-rod-score` contract |
+| `HEDGE_ROD_SERVICE_SECRET_KEY` | **Secret**: Stellar account key authorized to call `submit_score()` on the contract |
 | `SOROBAN_RPC_URL` | Soroban RPC endpoint (separate from Horizon; defaults to Testnet) |
 | `NETWORK_PASSPHRASE` | Stellar network passphrase (must match the network the contract is on) |
 | `SOROBAN_CIRCUIT_BREAKER_THRESHOLD` | Consecutive failures before the circuit opens (default: 5) |
@@ -197,7 +197,7 @@ After each pipeline run, all `RiskScore` records above `RISK_SCORE_THRESHOLD` ar
 **Circuit breaker**: after `SOROBAN_CIRCUIT_BREAKER_THRESHOLD` consecutive failures within a 60-second rolling window, the publisher stops calling the contract and raises `SorobanCircuitOpenError`. The circuit auto-resets after `SOROBAN_CIRCUIT_RESET_SECONDS`. This prevents submission storms on contract failures without blocking the pipeline.
 
 **Security**:
-- `LEDGERLENS_SERVICE_SECRET_KEY` is converted to a `Keypair` at construction time; the raw key string is not retained as an instance variable
+- `HEDGE_ROD_SERVICE_SECRET_KEY` is converted to a `Keypair` at construction time; the raw key string is not retained as an instance variable
 - The keypair object's secret is never included in `__repr__`, logs, or the `on_chain_submissions` audit table
 - The publisher overrides `__getstate__` to exclude the keypair from pickle serialization
 - Running with `--no-submit` (via `cli.py score --no-submit`) skips all on-chain calls
@@ -285,7 +285,7 @@ python run_pipeline.py
 ```
 
 This scores each wallet/asset-pair combination and writes the resulting
-`RiskScore` records to the local SQLite store (`LEDGERLENS_DB_PATH`).
+`RiskScore` records to the local SQLite store (`HEDGE_ROD_DB_PATH`).
 
 ### 5. Serve the local API
 
@@ -473,14 +473,14 @@ Every `cli.py retrain-check` run also persists its drift report and per-model re
 | `GET`  | `/admin/drift-reports`   | Most recent drift checks (PSI report, threshold, detected flag) |
 | `GET`  | `/admin/retrain-runs`    | Most recent per-model retrain outcomes (old/new version, AUC-ROC, promoted, forced); filter with `?model_name=` |
 
-Both endpoints require an admin key, since they expose internal model governance data. Set `LEDGERLENS_ADMIN_API_KEY` and pass it via the `X-HEDGE-ROD-Admin-Key` header:
+Both endpoints require an admin key, since they expose internal model governance data. Set `HEDGE_ROD_ADMIN_API_KEY` and pass it via the `X-HEDGE-ROD-Admin-Key` header:
 
 ```bash
-export LEDGERLENS_ADMIN_API_KEY="$(openssl rand -hex 32)"
-curl -H "X-HEDGE-ROD-Admin-Key: $LEDGERLENS_ADMIN_API_KEY" http://localhost:8000/admin/retrain-runs?model_name=random_forest
+export HEDGE_ROD_ADMIN_API_KEY="$(openssl rand -hex 32)"
+curl -H "X-HEDGE-ROD-Admin-Key: $HEDGE_ROD_ADMIN_API_KEY" http://localhost:8000/admin/retrain-runs?model_name=random_forest
 ```
 
-If `LEDGERLENS_ADMIN_API_KEY` is unset, both endpoints return `503` rather than allowing unauthenticated access.
+If `HEDGE_ROD_ADMIN_API_KEY` is unset, both endpoints return `503` rather than allowing unauthenticated access.
 
 ## Webhook Alerts
 
@@ -596,7 +596,7 @@ Run as a long-lived foreground process (e.g., under systemd or supervisor).
 - Subscriber URLs must use `https://`. HTTP URLs and private/reserved IPs
   are rejected at registration (SSRF protection).
 - HMAC secrets are encrypted at rest with AES-256-GCM. The encryption key
-  is loaded from `LEDGERLENS_WEBHOOK_ENCRYPTION_KEY` (32-byte base64,
+  is loaded from `HEDGE_ROD_WEBHOOK_ENCRYPTION_KEY` (32-byte base64,
   stored in the environment **only**).
 - Raw secrets never appear in API responses, logs, or error messages.
 - The response body from the webhook receiver is discarded entirely to
@@ -743,9 +743,9 @@ If you change a field name, type, or range here, update the Rust struct in `hedg
 **2. Trade / Asset schema** — defined here at `ingestion/data_models.py` (`Trade`, `Asset`, `OrderBookEvent`). `hedge-rod-data` persists records in this shape; changing field names here requires a migration note for `hedge-rod-data`.
 
 **3. Environment variables / config keys** — `.env.example` defines the cross-repo keys:
-- `LEDGERLENS_API_URL` — where `core` publishes scores
-- `LEDGERLENS_SCORE_CONTRACT_ID` — the deployed Soroban contract id (also used by `hedge-rod-api` and `hedge-rod-contracts`)
-- `LEDGERLENS_SERVICE_SECRET_KEY` — the Soroban service account authorized to call `submit_score` (never commit; only `core`/`api` need this)
+- `HEDGE_ROD_API_URL` — where `core` publishes scores
+- `HEDGE_ROD_SCORE_CONTRACT_ID` — the deployed Soroban contract id (also used by `hedge-rod-api` and `hedge-rod-contracts`)
+- `HEDGE_ROD_SERVICE_SECRET_KEY` — the Soroban service account authorized to call `submit_score` (never commit; only `core`/`api` need this)
 - `RISK_SCORE_THRESHOLD` — score above which `api` pushes to the contract
 
 **4. Soroban contract interface** — `hedge-rod-contracts` exposes:

@@ -12,7 +12,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-logger = logging.getLogger("ledgerlens.model_registry")
+logger = logging.getLogger("hedge-rod.model_registry")
 
 
 def _compute_version_hash(training_row_count: int, column_hash: str) -> str:

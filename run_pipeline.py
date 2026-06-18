@@ -1,9 +1,9 @@
-"""LedgerLens detection pipeline entry point.
+"""HedgeRod detection pipeline entry point.
 
 Loads recent trades, computes Benford + ML features per wallet/asset pair,
 scores each with the trained ensemble, and publishes the resulting
-`RiskScore` records to ledgerlens-api (and optionally ledgerlens-contracts).
-See README.md's "LedgerLens Organization" section for how this fits with
+`RiskScore` records to hedge-rod-api (and optionally hedge-rod-contracts).
+See README.md's "HedgeRod Organization" section for how this fits with
 the other repos in the org.
 """
 
@@ -44,7 +44,7 @@ from ingestion.operations_loader import (
 from ingestion.path_payment_loader import async_load_path_payments, load_path_payments_for_accounts
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ledgerlens.pipeline")
+logger = logging.getLogger("hedge-rod.pipeline")
 
 
 def run(

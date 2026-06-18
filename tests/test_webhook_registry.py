@@ -12,7 +12,7 @@ from detection.risk_score import RiskScore
 @pytest.fixture(autouse=True)
 def webhook_env(monkeypatch):
     key = base64.b64encode(os.urandom(32)).decode()
-    monkeypatch.setenv("LEDGERLENS_WEBHOOK_ENCRYPTION_KEY", key)
+    monkeypatch.setenv("HEDGE_ROD_WEBHOOK_ENCRYPTION_KEY", key)
 
 
 @pytest.fixture

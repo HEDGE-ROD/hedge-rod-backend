@@ -22,7 +22,7 @@ from detection.webhook_queue import (
 )
 from detection.webhook_registry import get_subscriber, init_db as init_registry_db
 
-logger = logging.getLogger("ledgerlens.webhook.worker")
+logger = logging.getLogger("hedge-rod.webhook.worker")
 
 MAX_CONCURRENT = 10
 REQUEST_TIMEOUT = 10.0
@@ -56,8 +56,8 @@ async def _deliver(
 
     headers = {
         "Content-Type": "application/json",
-        "X-LedgerLens-Signature": signature,
-        "X-LedgerLens-Timestamp": str(int(datetime.now(timezone.utc).timestamp())),
+        "X-Hedge-Rod-Signature": signature,
+        "X-Hedge-Rod-Timestamp": str(int(datetime.now(timezone.utc).timestamp())),
     }
 
     try:

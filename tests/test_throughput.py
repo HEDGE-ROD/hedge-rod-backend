@@ -124,7 +124,7 @@ async def test_async_run_throughput_500_wallets(tmp_path, monkeypatch):
         dataclasses.replace(
             settings_module.settings,
             model_dir=models_path,
-            db_path=str(tmp_path / "ledgerlens.db"),
+            db_path=str(tmp_path / "hedge-rod.db"),
             score_contract_id="",
             service_secret_key="",
         ),

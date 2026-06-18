@@ -1,4 +1,4 @@
-"""LedgerLens command-line interface.
+"""HedgeRod command-line interface.
 
 Convenience wrapper around the pieces of the detection engine that are
 otherwise run as separate scripts/modules:
@@ -14,9 +14,9 @@ import logging
 
 import typer
 
-app = typer.Typer(help="LedgerLens detection engine CLI")
+app = typer.Typer(help="HedgeRod detection engine CLI")
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ledgerlens.cli")
+logger = logging.getLogger("hedge-rod.cli")
 
 
 @app.command("generate-data")
@@ -339,7 +339,7 @@ def serve(
 
 @app.command("db-migrate")
 def db_migrate(
-    db_path: str = typer.Option(None, "--db-path", help="Path to the SQLite database (defaults to LEDGERLENS_DB_PATH)"),
+    db_path: str = typer.Option(None, "--db-path", help="Path to the SQLite database (defaults to HEDGE_ROD_DB_PATH)"),
 ) -> None:
     """Apply any pending schema migrations to the database and report the result."""
     from detection.storage import _connect, get_schema_version, migrate_db

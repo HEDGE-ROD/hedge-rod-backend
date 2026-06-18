@@ -14,7 +14,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def webhook_env(monkeypatch):
     key = base64.b64encode(os.urandom(32)).decode()
-    monkeypatch.setenv("LEDGERLENS_WEBHOOK_ENCRYPTION_KEY", key)
+    monkeypatch.setenv("HEDGE_ROD_WEBHOOK_ENCRYPTION_KEY", key)
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def _fix_settings(monkeypatch, db_path):
     """Make sure ``settings.db_path`` points at the temp DB so that
     ``mark_delivered`` / ``mark_failed`` (called without ``db_path=``)
     write to the right place."""
-    monkeypatch.setenv("LEDGERLENS_DB_PATH", db_path)
+    monkeypatch.setenv("HEDGE_ROD_DB_PATH", db_path)
     import config.settings as s
 
     object.__setattr__(s.settings, "db_path", db_path)
@@ -216,8 +216,8 @@ async def test_deliver_sends_correct_hmac_header(db_path):
         await _deliver(client, deliveries[0], sub, db_path=db_path)
 
     raw_headers = {k.lower(): v for k, v in captured["headers"].items()}
-    assert "x-ledgerlens-signature" in raw_headers
-    sig = raw_headers["x-ledgerlens-signature"]
+    assert "x-hedge-rod-signature" in raw_headers
+    sig = raw_headers["x-hedge-rod-signature"]
     body = captured["body"]
 
     expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()

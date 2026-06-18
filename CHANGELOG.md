@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `ledgerlens-core` are documented in this file.
+All notable changes to `hedge-rod-core` are documented in this file.
 
 ## Unreleased
 
@@ -11,7 +11,7 @@ All notable changes to `ledgerlens-core` are documented in this file.
 - SQLite-backed local `RiskScore` store (`detection/storage.py`).
 - Local read-only FastAPI app (`api/main.py`) serving `/scores`, `/alerts`,
   and `/assets/risk-ranking`.
-- `ledgerlens` CLI (`cli.py`): `generate-data`, `train`, `score`, `serve`.
+- `hedge-rod` CLI (`cli.py`): `generate-data`, `train`, `score`, `serve`.
 - Retrying HTTP client for Horizon API calls (`ingestion/http_client.py`).
 - Dockerfile, docker-compose, and GitHub Actions CI workflow.
 

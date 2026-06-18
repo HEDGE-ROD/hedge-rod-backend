@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from config.settings import settings
 
-logger = logging.getLogger("ledgerlens.webhook.queue")
+logger = logging.getLogger("hedge-rod.webhook.queue")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS webhook_delivery_queue (

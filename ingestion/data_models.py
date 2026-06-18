@@ -1,10 +1,10 @@
 """Pydantic schemas for Stellar DEX trade and order book records.
 
 These models are the shared "shape" of trade data as it flows from
-ingestion -> detection. The ledgerlens-data repo persists records in
-this shape; the ledgerlens-api repo serializes RiskScore (see
+ingestion -> detection. The hedge-rod-data repo persists records in
+this shape; the hedge-rod-api repo serializes RiskScore (see
 detection/risk_score.py) using the same field names so consumers across
-the org stay in sync. See README.md's "LedgerLens Organization" section
+the org stay in sync. See README.md's "HedgeRod Organization" section
 for the cross-repo data contract.
 """
 

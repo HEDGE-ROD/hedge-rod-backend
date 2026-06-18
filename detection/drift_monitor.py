@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger("ledgerlens.drift_monitor")
+logger = logging.getLogger("hedge-rod.drift_monitor")
 
 MAX_SNAPSHOT_ROWS = 500_000
 MIN_SNAPSHOT_ROWS_AFTER_PRUNE = 450_000

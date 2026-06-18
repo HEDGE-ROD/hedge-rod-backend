@@ -1,6 +1,6 @@
 """Synthetic SDEX trade data generator for local training and testing.
 
-The canonical labelled dataset lives in `ledgerlens-data`, which is not
+The canonical labelled dataset lives in `hedge-rod-data`, which is not
 populated for local development. This module generates synthetic trade
 activity — a pool of "normal" accounts trading with organic, Benford-
 conforming amounts and timing, plus a number of "wash rings" that trade

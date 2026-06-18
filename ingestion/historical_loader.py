@@ -2,7 +2,7 @@
 
 Paginates through `/trades` (or `/order_book` history for a given asset
 pair) and returns a pandas DataFrame ready for `detection.feature_engineering`.
-Persisted output is handed off to the ledgerlens-data repo for storage.
+Persisted output is handed off to the hedge-rod-data repo for storage.
 """
 
 from datetime import datetime, timedelta, timezone

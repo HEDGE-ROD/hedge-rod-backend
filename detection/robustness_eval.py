@@ -1,4 +1,4 @@
-"""Robustness evaluation framework for the LedgerLens ensemble.
+"""Robustness evaluation framework for the HedgeRod ensemble.
 
 Measures model performance degradation under each evasion strategy by
 generating adversarial datasets and scoring them with pre-trained models.

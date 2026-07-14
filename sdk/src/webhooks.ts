@@ -78,3 +78,37 @@ export function verifyWebhookSignature(
     return false;
   }
 
+  const expectedHex = createHmac("sha256", secret).update(rawBody).digest("hex");
+
+  const provided = Buffer.from(providedHex, "hex");
+  const expected = Buffer.from(expectedHex, "hex");
+  if (provided.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(provided, expected);
+}
+
+/**
+ * Check whether an `X-HEDGE-ROD-Timestamp` header value is within
+ * `toleranceSeconds` of now, as a replay-attack guard. The README recommends
+ * rejecting deliveries older than 5 minutes (the default here).
+ *
+ * @param timestampHeader - The raw `X-HEDGE-ROD-Timestamp` header value
+ *   (Unix epoch seconds, as a string).
+ * @param toleranceSeconds - Maximum allowed age in seconds. Defaults to 300.
+ * @param now - Injectable current time (epoch seconds) for testing.
+ */
+export function isWebhookTimestampFresh(
+  timestampHeader: string | null | undefined,
+  toleranceSeconds: number = DEFAULT_TOLERANCE_SECONDS,
+  now: number = Math.floor(Date.now() / 1000),
+): boolean {
+  if (!timestampHeader) {
+    return false;
+  }
+  const ts = Number(timestampHeader);
+  if (!Number.isFinite(ts)) {
+    return false;
+  }
+  return Math.abs(now - ts) <= toleranceSeconds;
+}

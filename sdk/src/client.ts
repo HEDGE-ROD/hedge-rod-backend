@@ -109,3 +109,65 @@ export class HedgeRodClient {
       payload = JSON.stringify(body);
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method,
+        headers,
+        body: payload,
+        signal: controller.signal,
+      });
+    } catch (cause) {
+      const isAbort = cause instanceof Error && cause.name === "AbortError";
+      throw new HedgeRodApiError(
+        isAbort ? `Request to ${path} timed out after ${this.timeoutMs}ms` : `Network error requesting ${path}: ${(cause as Error).message}`,
+        { status: 0, path, cause },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const text = await response.text();
+    const parsed = text.length > 0 ? safeJsonParse(text) : undefined;
+
+    if (!response.ok) {
+      const detail =
+        parsed && typeof parsed === "object" && parsed !== null && "detail" in parsed
+          ? String((parsed as { detail: unknown }).detail)
+          : response.statusText;
+      throw new HedgeRodApiError(`HEDGE-ROD API request to ${path} failed with ${response.status}: ${detail}`, {
+        status: response.status,
+        body: parsed,
+        path,
+      });
+    }
+
+    return parsed as T;
+  }
+
+  // ---------------------------------------------------------------------
+  // Read endpoints
+  // ---------------------------------------------------------------------
+
+  /** `GET /health` */
+  getHealth(): Promise<HealthResponse> {
+    return this.request<HealthResponse>("/health");
+  }
+
+  /** `GET /scores` — latest score per (wallet, asset_pair), filtered and paginated. */
+  getScores(options: GetScoresOptions = {}): Promise<RiskScore[]> {
+    return this.request<RiskScore[]>("/scores", {
+      query: {
+        min_score: options.min_score,
+        limit: options.limit,
+        offset: options.offset,
+        benford_flag: options.benford_flag,
+        ml_flag: options.ml_flag,
+        sort_by: options.sort_by,
+      },
+    });
+  }
+

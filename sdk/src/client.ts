@@ -71,3 +71,41 @@ export class HedgeRodClient {
   private readonly fetchImpl: typeof fetch;
   private readonly extraHeaders: Record<string, string>;
 
+  constructor(options: HedgeRodClientOptions) {
+    if (!options.baseUrl) {
+      throw new TypeError("HedgeRodClient requires a non-empty baseUrl");
+    }
+    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.adminKey = options.adminKey;
+    this.timeoutMs = options.timeoutMs ?? 10_000;
+    const boundFetch = options.fetch ?? globalThis.fetch;
+    if (!boundFetch) {
+      throw new TypeError(
+        "No fetch implementation available. Pass one via `options.fetch` (e.g. from undici) on runtimes without global fetch.",
+      );
+    }
+    this.fetchImpl = boundFetch;
+    this.extraHeaders = options.headers ?? {};
+  }
+
+  // ---------------------------------------------------------------------
+  // Core request plumbing
+  // ---------------------------------------------------------------------
+
+  private async request<T>(
+    path: string,
+    init: { method?: string; query?: QueryParams; body?: unknown } = {},
+  ): Promise<T> {
+    const { method = "GET", query, body } = init;
+    const url = `${this.baseUrl}${path}${query ? buildQuery(query) : ""}`;
+
+    const headers: Record<string, string> = { Accept: "application/json", ...this.extraHeaders };
+    if (this.adminKey) {
+      headers["X-Admin-Key"] = this.adminKey;
+    }
+    let payload: string | undefined;
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      payload = JSON.stringify(body);
+    }
+

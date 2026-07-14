@@ -57,3 +57,60 @@ class StreamSource(Protocol):
 
     def __iter__(self) -> Iterator[Trade]: ...
 
+
+class InMemoryStreamSource:
+    """An in-process, thread-safe `StreamSource` backed by a queue.
+
+    Producers call `publish` (and `close` when done); the worker iterates.
+    Iteration ends after `close` once the backlog is drained, giving tests a
+    clean, deterministic shutdown.
+    """
+
+    _SENTINEL = object()
+
+    def __init__(self, trades: Iterable[Trade] | None = None) -> None:
+        self._queue: queue.Queue = queue.Queue()
+        self._closed = False
+        for trade in trades or []:
+            self._queue.put(trade)
+
+    def publish(self, trade: Trade) -> None:
+        if self._closed:
+            raise RuntimeError("Cannot publish to a closed StreamSource")
+        self._queue.put(trade)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            self._queue.put(self._SENTINEL)
+
+    def __iter__(self) -> Iterator[Trade]:
+        while True:
+            item = self._queue.get()
+            if item is self._SENTINEL:
+                return
+            yield item
+
+
+class CallableStreamSource:
+    """Adapt any iterable or zero-arg generator function into a `StreamSource`.
+
+    This is the extension point for external transports (Kafka, Redis
+    Streams, etc.): wrap the consumer's generator here instead of adding a
+    hard dependency on the backend to this module.
+    """
+
+    def __init__(self, factory: Iterable[Trade] | "callable") -> None:
+        self._factory = factory
+
+    def __iter__(self) -> Iterator[Trade]:
+        source = self._factory() if callable(self._factory) else self._factory
+        yield from source
+
+
+class HorizonStreamSource:
+    """`StreamSource` backed by the live Horizon SSE trade stream."""
+
+    def __init__(self, cursor: str = "now") -> None:
+        self._cursor = cursor
+

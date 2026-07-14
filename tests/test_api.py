@@ -639,3 +639,67 @@ def test_explain_response_time_under_100ms(client_with_models):
 
     assert resp.status_code == 200
     assert elapsed_ms < 100, f"Response took {elapsed_ms:.1f} ms — expected < 100 ms"
+
+
+# ---------------------------------------------------------------------------
+# /rings — graph-based wash-ring detection
+# ---------------------------------------------------------------------------
+
+
+def _seed_rings(db_path):
+    import pandas as pd
+
+    from detection.graph_engine import detect_wash_rings
+    from detection.storage import save_wash_rings
+
+    members = ["GA", "GB", "GC"]
+    rows = []
+    for _ in range(4):
+        for i, seller in enumerate(members):
+            buyer = members[(i + 1) % len(members)]
+            rows.append(
+                {"base_account": seller, "counter_account": buyer, "base_amount": 100.0, "base_is_seller": True}
+            )
+            rows.append(
+                {"base_account": buyer, "counter_account": seller, "base_amount": 100.0, "base_is_seller": True}
+            )
+    rings = detect_wash_rings(pd.DataFrame(rows), asset_pair="XLM/USDC")
+    save_wash_rings(rings, db_path=db_path)
+
+
+def test_rings_empty(client):
+    resp = client.get("/rings")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_rings_returns_detected_ring(client, tmp_path):
+    db_path = str(tmp_path / "hedge-rod.db")
+    _seed_rings(db_path)
+    resp = client.get("/rings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert set(body[0]["members"]) == {"GA", "GB", "GC"}
+    assert body[0]["suspicion_score"] >= 75
+    assert body[0]["cycle_count"] >= 1
+
+
+def test_rings_min_score_filter(client, tmp_path):
+    db_path = str(tmp_path / "hedge-rod.db")
+    _seed_rings(db_path)
+    assert client.get("/rings?min_score=99").json()  # dense ring scores 100
+    # An impossibly high threshold on a 0-100 score filters everything.
+    resp = client.get("/rings?min_score=100")
+    assert resp.status_code == 200
+
+
+def test_rings_asset_pair_filter(client, tmp_path):
+    db_path = str(tmp_path / "hedge-rod.db")
+    _seed_rings(db_path)
+    assert client.get("/rings?asset_pair=XLM/USDC").json()
+    assert client.get("/rings?asset_pair=XLM/AQUA").json() == []
+
+
+def test_rings_invalid_min_score(client):
+    assert client.get("/rings?min_score=101").status_code == 422

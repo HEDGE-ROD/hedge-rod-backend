@@ -333,3 +333,83 @@ def compute_classification_report(
         },
     }
 
+
+def threshold_sweep(
+    y_true: list[int],
+    y_scores: list[int],
+    thresholds: list[int] | None = None,
+) -> list[dict]:
+    """Compute a classification report at each threshold in `thresholds`.
+
+    Defaults to sweeping ``0, 10, 20, …, 100`` so callers can pick an
+    operating point from precision/recall trade-offs.
+    """
+    thresholds = thresholds if thresholds is not None else list(range(0, 101, 10))
+    return [compute_classification_report(y_true, y_scores, t) for t in thresholds]
+
+
+# ---------------------------------------------------------------------------
+# Report assembly + serialization
+# ---------------------------------------------------------------------------
+
+
+def build_report(
+    scoring: BacktestScoring,
+    threshold: int,
+    dataset: FrozenDataset,
+    sweep: bool = True,
+) -> dict:
+    """Assemble a JSON-serialisable backtest report."""
+    report = compute_classification_report(scoring.y_true, scoring.y_scores, threshold)
+    payload = {
+        "timestamp": datetime.now().strftime("%Y%m%d_%H%M"),
+        "asset_pair": dataset.asset_pair,
+        "threshold": threshold,
+        "n_wallets": len(scoring.wallets),
+        "metrics": report,
+    }
+    if sweep:
+        payload["threshold_sweep"] = threshold_sweep(scoring.y_true, scoring.y_scores)
+    return payload
+
+
+def write_report(report: dict, output_dir: str = DEFAULT_REPORT_DIR) -> str:
+    """Write `report` to ``output_dir/YYYYMMDD_HHMM.json`` and return the path."""
+    os.makedirs(output_dir, exist_ok=True)
+    timestamp = report.get("timestamp") or datetime.now().strftime("%Y%m%d_%H%M")
+    report_path = os.path.join(output_dir, f"{timestamp}.json")
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
+    logger.info("Wrote backtest report to %s", report_path)
+    return report_path
+
+
+def run_backtest(
+    threshold: int = 70,
+    input_path: str | None = None,
+    labels_path: str | None = None,
+    output_dir: str = DEFAULT_REPORT_DIR,
+    synthetic: bool = False,
+    models: dict | None = None,
+    write: bool = True,
+    **synthetic_kwargs,
+) -> dict:
+    """End-to-end backtest: load frozen data, score, report, and persist.
+
+    Returns the report dict; when `write` is true it is also written to
+    ``output_dir/YYYYMMDD_HHMM.json`` and the path is added under
+    ``report["report_path"]``.
+    """
+    dataset = load_frozen_dataset(
+        input_path=input_path,
+        labels_path=labels_path,
+        synthetic=synthetic,
+        **synthetic_kwargs,
+    )
+    scoring = score_dataset(dataset, models=models)
+    report = build_report(scoring, threshold, dataset)
+
+    if write:
+        report["report_path"] = write_report(report, output_dir)
+
+    return report

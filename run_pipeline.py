@@ -21,6 +21,7 @@ from detection.cross_pair_engine import (
 )
 from detection.drift_monitor import record_scored_features
 from detection.feature_engineering import build_feature_vector
+from detection.graph_engine import detect_wash_rings
 from detection.model_inference import load_models, score_feature_matrix, score_feature_vector
 from detection.path_payment_engine import detect_atomic_circular_routes
 from detection.risk_score import RiskScore

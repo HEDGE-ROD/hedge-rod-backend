@@ -14,3 +14,17 @@ export class HedgeRodApiError extends Error {
   /** The request path, e.g. `/scores/GABC...`. */
   readonly path: string;
 
+  constructor(message: string, options: { status: number; body?: unknown; path: string; cause?: unknown }) {
+    super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
+    this.name = "HedgeRodApiError";
+    this.status = options.status;
+    this.body = options.body;
+    this.path = options.path;
+    Object.setPrototypeOf(this, HedgeRodApiError.prototype);
+  }
+
+  /** True when the request never reached the server (timeout or network error). */
+  get isNetworkError(): boolean {
+    return this.status === 0;
+  }
+}

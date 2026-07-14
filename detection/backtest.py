@@ -95,3 +95,82 @@ def from_synthetic(
         asset_pair=asset_pair,
     )
 
+
+def _literal_eval_asset_columns(trades: pd.DataFrame) -> pd.DataFrame:
+    """Parse `base_asset`/`counter_asset` string reprs back into dicts.
+
+    CSV round-trips serialise the nested `Asset` dicts as Python-literal
+    strings; the feature engineering layer needs them as real dicts.
+    """
+    trades = trades.copy()
+    for col in ("base_asset", "counter_asset"):
+        if col in trades.columns and trades[col].dtype == object:
+            trades[col] = trades[col].map(
+                lambda v: ast.literal_eval(v) if isinstance(v, str) and v.startswith("{") else v
+            )
+    return trades
+
+
+def _read_trades_file(path: str) -> pd.DataFrame:
+    """Load a trades CSV or JSON into a `Trade`-shaped DataFrame."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Trades file not found: {path}")
+    if path.endswith(".json"):
+        trades = pd.read_json(path)
+    else:
+        trades = pd.read_csv(path)
+    if trades.empty:
+        return trades
+    trades = _literal_eval_asset_columns(trades)
+    trades["ledger_close_time"] = pd.to_datetime(trades["ledger_close_time"], utc=True)
+    return trades.sort_values("ledger_close_time").reset_index(drop=True)
+
+
+def _extract_label(record: dict) -> int | None:
+    for col in _LABEL_COLUMNS:
+        if col in record and record[col] is not None and not pd.isna(record[col]):
+            return int(bool(int(float(record[col]))))
+    return None
+
+
+def read_labels_file(path: str) -> dict[str, int]:
+    """Read a labels CSV or JSON of ``{wallet, asset_pair, is_wash}`` rows.
+
+    Accepts several column aliases for the binary label
+    (``is_wash``/``label``/``wash``/``y``). Returns ``{wallet: 0|1}``; if a
+    wallet appears more than once the last labelled row wins.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Labels file not found: {path}")
+
+    if path.endswith(".json"):
+        with open(path) as f:
+            payload = json.load(f)
+        records = payload if isinstance(payload, list) else payload.get("labels", [])
+    else:
+        records = pd.read_csv(path).to_dict("records")
+
+    labels: dict[str, int] = {}
+    for record in records:
+        wallet = record.get("wallet")
+        if not wallet:
+            continue
+        label = _extract_label(record)
+        if label is not None:
+            labels[str(wallet)] = label
+    if not labels:
+        raise ValueError(f"No usable labels parsed from {path}")
+    return labels
+
+
+def from_files(
+    trades_path: str,
+    labels_path: str,
+    order_book_events_path: str | None = None,
+    account_metadata: dict[str, dict] | None = None,
+    asset_pair: str = DEFAULT_ASSET_PAIR,
+) -> FrozenDataset:
+    """Build a `FrozenDataset` from persisted trades + a labels file."""
+    trades = _read_trades_file(trades_path)
+    labels = read_labels_file(labels_path)
+

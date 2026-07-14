@@ -188,3 +188,62 @@ def _score_ring(density: float, reciprocity: float, cycle_count: int) -> int:
     )
     return int(round(max(0.0, min(100.0, raw))))
 
+
+def detect_wash_rings(
+    trades: pd.DataFrame,
+    asset_pair: str,
+    min_ring_size: int = 3,
+    max_cycle_length: int = 6,
+    min_suspicion: int = 0,
+) -> list[WashRing]:
+    """Detect suspected wash-trading rings for `asset_pair`.
+
+    Builds the trade graph, partitions it into communities of at least
+    `min_ring_size` wallets, and scores each community on its internal
+    density, reciprocity, and circular-routing structure. Returns
+    `WashRing` records with `suspicion_score >= min_suspicion`, most
+    suspicious first.
+    """
+    graph = build_trade_graph(trades)
+    if graph.number_of_nodes() == 0:
+        return []
+
+    rings: list[WashRing] = []
+    for community in detect_communities(graph, min_size=min_ring_size):
+        subgraph = graph.subgraph(community)
+        members = sorted(str(m) for m in community)
+
+        density = _edge_density(subgraph)
+        reciprocity = _reciprocal_edge_ratio(subgraph)
+        cycles = find_trade_cycles(subgraph, max_cycle_length=max_cycle_length)
+        cycle_count = len(cycles)
+        longest_cycle = max((len(c) for c in cycles), default=0)
+
+        internal_trade_count = int(
+            sum(data.get("weight", 0) for *_e, data in subgraph.edges(data=True))
+        )
+        internal_volume = float(
+            sum(data.get("volume", 0.0) for *_e, data in subgraph.edges(data=True))
+        )
+        suspicion = _score_ring(density, reciprocity, cycle_count)
+        if suspicion < min_suspicion:
+            continue
+
+        rings.append(
+            WashRing(
+                ring_id=ring_id_for(members, asset_pair),
+                asset_pair=asset_pair,
+                members=tuple(members),
+                size=len(members),
+                internal_trade_count=internal_trade_count,
+                internal_volume=internal_volume,
+                edge_density=round(density, 4),
+                reciprocal_edge_ratio=round(reciprocity, 4),
+                cycle_count=cycle_count,
+                longest_cycle=longest_cycle,
+                suspicion_score=suspicion,
+            )
+        )
+
+    rings.sort(key=lambda r: r.suspicion_score, reverse=True)
+    return rings

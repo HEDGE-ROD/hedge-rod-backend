@@ -32,6 +32,7 @@ from detection.storage import (
     get_liquidity_pool_trades,
     get_pair_correlations,
     get_shap_values,
+    get_wash_rings,
 )
 from detection.webhook_queue import get_dead_letters
 from detection.webhook_registry import deactivate_subscriber, list_subscribers, register_subscriber

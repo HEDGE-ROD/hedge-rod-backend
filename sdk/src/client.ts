@@ -171,3 +171,48 @@ export class HedgeRodClient {
     });
   }
 
+  /** `GET /scores/{wallet}` — latest score for `wallet` on each asset pair. Throws 404 if none found. */
+  getWalletScores(wallet: string): Promise<RiskScore[]> {
+    return this.request<RiskScore[]>(`/scores/${encodeURIComponent(wallet)}`);
+  }
+
+  /**
+   * `GET /scores/{wallet}/explain?asset_pair=...` — top-5 SHAP feature
+   * contributions for `wallet` on `assetPair`. Throws 404 if no SHAP cache
+   * entry exists, 503 if models were not loaded server-side.
+   */
+  explainScore(wallet: string, assetPair: string): Promise<ShapContribution[]> {
+    return this.request<ShapContribution[]>(`/scores/${encodeURIComponent(wallet)}/explain`, {
+      query: { asset_pair: assetPair },
+    });
+  }
+
+  /** `GET /alerts` — scores at or above the server's configured risk threshold. */
+  getAlerts(options: GetAlertsOptions = {}): Promise<RiskScore[]> {
+    return this.request<RiskScore[]>("/alerts", {
+      query: { limit: options.limit, offset: options.offset },
+    });
+  }
+
+  /** `GET /assets/risk-ranking` — asset pairs ranked by average wallet risk score, descending. */
+  getAssetRiskRanking(): Promise<AssetRiskRanking[]> {
+    return this.request<AssetRiskRanking[]>("/assets/risk-ranking");
+  }
+
+  /** `GET /correlations` — most recent correlated asset-pair set from the pipeline. */
+  getCorrelations(): Promise<PairCorrelation[]> {
+    return this.request<PairCorrelation[]>("/correlations");
+  }
+
+  /** `GET /amm/pools/{pool_id}/risk` — round-trip ratio and trader concentration for a pool. Throws 404 if unknown. */
+  getPoolRisk(poolId: string): Promise<PoolRisk> {
+    return this.request<PoolRisk>(`/amm/pools/${encodeURIComponent(poolId)}/risk`);
+  }
+
+  /** `GET /path-payments/circular` — detected atomic circular path-payment routes, paginated. */
+  getCircularPathPayments(options: GetCircularPathPaymentsOptions = {}): Promise<CircularPathPayment[]> {
+    return this.request<CircularPathPayment[]>("/path-payments/circular", {
+      query: { limit: options.limit, offset: options.offset },
+    });
+  }
+

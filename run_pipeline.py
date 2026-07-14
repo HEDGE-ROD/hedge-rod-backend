@@ -73,6 +73,7 @@ def run(
     scored_features: list[dict] = []
     scored_wallets: list[str] = []
     scored_pairs: list[str] = []
+    all_rings: list = []
 
     # Pre-load all trades when running in multi-pair mode
     trades_by_pair: dict[str, pd.DataFrame] = {}

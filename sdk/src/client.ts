@@ -216,3 +216,52 @@ export class HedgeRodClient {
     });
   }
 
+  /**
+   * `GET /rings` — suspected wash-trading rings (colluding wallet clusters)
+   * from the latest pipeline run, ordered by `suspicion_score` descending.
+   */
+  getRings(options: GetRingsOptions = {}): Promise<WashRing[]> {
+    return this.request<WashRing[]>("/rings", {
+      query: {
+        min_score: options.min_score,
+        asset_pair: options.asset_pair,
+        limit: options.limit,
+        offset: options.offset,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Webhook subscriber management
+  // ---------------------------------------------------------------------
+
+  /** `POST /webhooks` — register a new webhook subscriber. Throws 422 on invalid URL/filters. */
+  registerWebhook(body: WebhookCreateRequest): Promise<WebhookCreateResponse> {
+    return this.request<WebhookCreateResponse>("/webhooks", { method: "POST", body });
+  }
+
+  /** `GET /webhooks` — list active subscribers (secrets are masked by the server). */
+  listWebhooks(): Promise<WebhookSubscriber[]> {
+    return this.request<WebhookSubscriber[]>("/webhooks");
+  }
+
+  /** `DELETE /webhooks/{subscriber_id}` — deactivate a subscriber. Throws 404 if unknown. */
+  deleteWebhook(subscriberId: string): Promise<WebhookDeleteResponse> {
+    return this.request<WebhookDeleteResponse>(`/webhooks/${encodeURIComponent(subscriberId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** `GET /webhooks/dead-letters` — deliveries that have permanently failed after 8 attempts. */
+  getDeadLetters(): Promise<WebhookDeadLetter[]> {
+    return this.request<WebhookDeadLetter[]>("/webhooks/dead-letters");
+  }
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}

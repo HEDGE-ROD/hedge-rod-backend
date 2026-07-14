@@ -64,3 +64,65 @@ export interface PoolRisk {
   [key: string]: unknown;
 }
 
+/** One entry of `GET /path-payments/circular`. */
+export interface CircularPathPayment {
+  transaction_hash: string;
+  accounts: string[];
+  hop_count: number;
+  cycle_volume: number;
+  is_atomic_self_payment: boolean;
+  touches_pool: boolean;
+  timestamp: string;
+}
+
+/**
+ * Mirrors `detection.graph_engine.WashRing`, as returned by `GET /rings`.
+ *
+ * A ring is a cluster of wallets whose internal trading structure (density,
+ * reciprocity, circular routing) is consistent with collusive wash trading,
+ * even where no individual member crosses the per-wallet risk threshold.
+ */
+export interface WashRing {
+  ring_id: string;
+  asset_pair: string;
+  members: string[];
+  size: number;
+  internal_trade_count: number;
+  internal_volume: number;
+  /** Directed edge density within the ring, 0-1. */
+  edge_density: number;
+  /** Fraction of directed edges whose reverse edge is also present, 0-1. */
+  reciprocal_edge_ratio: number;
+  cycle_count: number;
+  longest_cycle: number;
+  /** 0-100; higher = more suspicious. */
+  suspicion_score: number;
+  timestamp: string;
+}
+
+/** Request body for `POST /webhooks`, mirrors `api.main.WebhookCreate`. */
+export interface WebhookCreateRequest {
+  url: string;
+  secret: string;
+  min_score?: number;
+  wallet_filter?: string | null;
+  asset_pair_filter?: string | null;
+}
+
+/** Response of `POST /webhooks`. */
+export interface WebhookCreateResponse {
+  subscriber_id: string;
+}
+
+/** One entry of `GET /webhooks` (secrets are masked server-side). */
+export interface WebhookSubscriber {
+  subscriber_id: string;
+  url: string;
+  /** Masked; the raw secret is never returned by the API. */
+  secret: string;
+  min_score: number;
+  wallet_filter: string | null;
+  asset_pair_filter: string | null;
+  created_at: string;
+}
+

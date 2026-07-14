@@ -791,6 +791,108 @@ def get_circular_routes(
     ]
 
 
+def save_wash_rings(rings: list, db_path: str | None = None) -> None:
+    """Persist detected wash rings from the latest pipeline run.
+
+    `rings` is a list of `detection.graph_engine.WashRing` records. All rings
+    from one run share a single timestamp so `get_wash_rings` can return just
+    the most recent run.
+    """
+    if not rings:
+        return
+    init_db(db_path)
+    ts = datetime.now(timezone.utc).isoformat()
+    with _connect(db_path) as conn:
+        conn.executemany(
+            """
+            INSERT INTO wash_rings
+                (ring_id, asset_pair, members_json, size, internal_trade_count,
+                 internal_volume, edge_density, reciprocal_edge_ratio, cycle_count,
+                 longest_cycle, suspicion_score, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    r.ring_id,
+                    r.asset_pair,
+                    json.dumps(list(r.members)),
+                    r.size,
+                    r.internal_trade_count,
+                    r.internal_volume,
+                    r.edge_density,
+                    r.reciprocal_edge_ratio,
+                    r.cycle_count,
+                    r.longest_cycle,
+                    r.suspicion_score,
+                    ts,
+                )
+                for r in rings
+            ],
+        )
+        conn.commit()
+
+
+def get_wash_rings(
+    min_score: int = 0,
+    asset_pair: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+    db_path: str | None = None,
+) -> list[dict]:
+    """Return rings from the most recent run, most suspicious first.
+
+    Filters to `suspicion_score >= min_score` and, when given, to a single
+    `asset_pair`. Paging is done in SQL.
+    """
+    init_db(db_path)
+    query = """
+        SELECT wr.ring_id, wr.asset_pair, wr.members_json, wr.size,
+               wr.internal_trade_count, wr.internal_volume, wr.edge_density,
+               wr.reciprocal_edge_ratio, wr.cycle_count, wr.longest_cycle,
+               wr.suspicion_score, wr.timestamp
+        FROM wash_rings wr
+        JOIN (SELECT MAX(timestamp) AS max_ts FROM wash_rings) latest
+          ON wr.timestamp = latest.max_ts
+        WHERE wr.suspicion_score >= ?
+        {asset_clause}
+        ORDER BY wr.suspicion_score DESC
+        {limit_offset}
+    """
+    params: list = [min_score]
+    asset_clause = ""
+    if asset_pair is not None:
+        asset_clause = "AND wr.asset_pair = ?"
+        params.append(asset_pair)
+    limit_offset = ""
+    if limit is not None:
+        limit_offset = "LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            query.format(asset_clause=asset_clause, limit_offset=limit_offset),
+            tuple(params),
+        ).fetchall()
+
+    return [
+        {
+            "ring_id": row[0],
+            "asset_pair": row[1],
+            "members": json.loads(row[2]),
+            "size": row[3],
+            "internal_trade_count": row[4],
+            "internal_volume": row[5],
+            "edge_density": row[6],
+            "reciprocal_edge_ratio": row[7],
+            "cycle_count": row[8],
+            "longest_cycle": row[9],
+            "suspicion_score": row[10],
+            "timestamp": row[11],
+        }
+        for row in rows
+    ]
+
+
 if __name__ == "__main__":
     init_db()
     print(f"Initialized risk score database at {settings.db_path}")

@@ -230,3 +230,59 @@ class StreamWorker:
             if self._enqueue_alerts:
                 self._enqueue(alerts)
 
+        return produced
+
+    # -- side effects -------------------------------------------------------
+
+    def _persist(self, scores: list[RiskScore]) -> None:
+        try:
+            from detection.storage import save_scores
+
+            save_scores(scores, db_path=self._db_path)
+        except Exception:
+            logger.exception("Failed to persist streamed scores")
+
+    def _enqueue(self, scores: list[RiskScore]) -> None:
+        try:
+            from detection.webhook_queue import enqueue, init_db as init_queue
+            from detection.webhook_registry import get_matching_subscribers, init_db as init_registry
+
+            init_registry(self._db_path)
+            init_queue(self._db_path)
+            for score in scores:
+                for sub in get_matching_subscribers(score, db_path=self._db_path):
+                    enqueue(sub.subscriber_id, score.model_dump(), db_path=self._db_path)
+        except Exception:
+            logger.exception("Failed to enqueue webhook alerts for streamed scores")
+
+    # -- lifecycle ----------------------------------------------------------
+
+    def stop(self) -> None:
+        """Signal the consumer loop to stop after the current trade."""
+        self._stop_event.set()
+
+    def run(self, max_trades: int | None = None) -> int:
+        """Consume trades from the source until it ends, `stop()`, or `max_trades`.
+
+        Returns the number of trades processed. Errors scoring an individual
+        trade are logged and skipped so one bad trade cannot kill the loop.
+        """
+        processed = 0
+        logger.info(
+            "Stream worker started (threshold=%d, buffer_size=%d)",
+            self._threshold,
+            self._buffer_size,
+        )
+        for trade in self._source:
+            if self._stop_event.is_set():
+                break
+            try:
+                self.process_trade(trade)
+            except Exception:
+                logger.exception("Failed to process streamed trade id=%s", getattr(trade, "id", "?"))
+            processed += 1
+            if max_trades is not None and processed >= max_trades:
+                break
+
+        logger.info("Stream worker stopped after %d trade(s)", processed)
+        return processed

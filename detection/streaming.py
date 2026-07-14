@@ -175,3 +175,58 @@ class StreamWorker:
             self._models = load_models()
         return self._models
 
+    # -- buffering ----------------------------------------------------------
+
+    def _buffer_key(self, account: str, asset_pair: str) -> str:
+        return f"{account}\x1f{asset_pair}"
+
+    def _append(self, account: str, asset_pair: str, trade: Trade) -> deque[Trade]:
+        key = self._buffer_key(account, asset_pair)
+        buffer = self._buffers.get(key)
+        if buffer is None:
+            buffer = deque(maxlen=self._buffer_size)
+            self._buffers[key] = buffer
+        buffer.append(trade)
+        return buffer
+
+    # -- scoring ------------------------------------------------------------
+
+    def _score_account(self, account: str, asset_pair: str, buffer: deque[Trade]) -> RiskScore:
+        trades_df = pd.DataFrame([t.model_dump() for t in buffer])
+        trades_df["ledger_close_time"] = pd.to_datetime(trades_df["ledger_close_time"], utc=True)
+        as_of = pd.Timestamp(trades_df["ledger_close_time"].max())
+
+        features = build_feature_vector(trades_df, account, as_of)
+        probability, confidence = score_feature_vector(self._get_models(), features)
+
+        return RiskScore.combine(
+            wallet=account,
+            asset_pair=asset_pair,
+            benford_mad=features.get("benford_mad_24h", 0.0),
+            benford_mad_threshold=settings.benford_mad_threshold,
+            ml_probability=probability,
+            ml_confidence=confidence,
+        )
+
+    def process_trade(self, trade: Trade) -> list[RiskScore]:
+        """Buffer `trade` and return an updated `RiskScore` per involved wallet.
+
+        Side effects (persistence, webhook enqueue) run for scores at or
+        above the alert threshold.
+        """
+        asset_pair = trade.asset_pair
+        produced: list[RiskScore] = []
+
+        for account in _involved_accounts(trade):
+            buffer = self._append(account, asset_pair, trade)
+            score = self._score_account(account, asset_pair, buffer)
+            self.latest_scores[(account, asset_pair)] = score
+            produced.append(score)
+
+        alerts = [s for s in produced if s.score >= self._threshold]
+        if alerts:
+            if self._persist_scores:
+                self._persist(alerts)
+            if self._enqueue_alerts:
+                self._enqueue(alerts)
+

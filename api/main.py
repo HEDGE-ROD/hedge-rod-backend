@@ -207,6 +207,26 @@ def circular_path_payments(
     return get_circular_routes(limit=limit, offset=offset)
 
 
+@app.get("/rings")
+def wash_rings(
+    min_score: int = Query(default=0, ge=0, le=100),
+    asset_pair: str | None = Query(
+        default=None, description="Restrict to a single asset pair, e.g. XLM/USDC."
+    ),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict]:
+    """Return suspected wash-trading rings from the latest pipeline run.
+
+    Each ring is a cluster of wallets that trade densely among themselves with
+    reciprocal edges and/or circular routing — collusion that per-wallet scores
+    miss. Ordered by `suspicion_score` (0-100) descending.
+    """
+    return get_wash_rings(
+        min_score=min_score, asset_pair=asset_pair, limit=limit, offset=offset
+    )
+
+
 # ---------------------------------------------------------------------------
 # Model observability — drift reports and retrain runs (admin-key gated)
 # ---------------------------------------------------------------------------

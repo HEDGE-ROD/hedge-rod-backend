@@ -126,3 +126,65 @@ export interface WebhookSubscriber {
   created_at: string;
 }
 
+/** Response of `DELETE /webhooks/{subscriber_id}`. */
+export interface WebhookDeleteResponse {
+  status: "deactivated";
+}
+
+/** The `data` field of a delivered webhook payload — a plain `RiskScore`. */
+export type WebhookAlertData = RiskScore;
+
+/** Full JSON body POSTed to a subscriber URL, per the README's "Payload Format". */
+export interface WebhookAlertPayload {
+  event: "risk_score_alert";
+  data: WebhookAlertData;
+  /** ISO 8601 timestamp of the delivery attempt. */
+  timestamp: string;
+}
+
+/** One entry of `GET /webhooks/dead-letters`. */
+export interface WebhookDeadLetter {
+  id: number;
+  subscriber_id: string;
+  payload: WebhookAlertPayload;
+  attempt_count: number;
+  last_error: string | null;
+  created_at: string;
+}
+
+/** Response of `GET /health`. */
+export interface HealthResponse {
+  status: "ok";
+}
+
+// ---------------------------------------------------------------------------
+// Request option types
+// ---------------------------------------------------------------------------
+
+export type SortBy = "score" | "confidence" | "timestamp";
+
+export interface GetScoresOptions {
+  min_score?: number;
+  limit?: number;
+  offset?: number;
+  benford_flag?: boolean;
+  ml_flag?: boolean;
+  sort_by?: SortBy;
+}
+
+export interface GetAlertsOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetRingsOptions {
+  min_score?: number;
+  asset_pair?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetCircularPathPaymentsOptions {
+  limit?: number;
+  offset?: number;
+}

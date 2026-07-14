@@ -174,3 +174,79 @@ def from_files(
     trades = _read_trades_file(trades_path)
     labels = read_labels_file(labels_path)
 
+    events = None
+    if order_book_events_path and os.path.exists(order_book_events_path):
+        events = pd.read_csv(order_book_events_path)
+
+    return FrozenDataset(
+        trades=trades,
+        labels=labels,
+        account_metadata=account_metadata or {},
+        order_book_events=events,
+        asset_pair=asset_pair,
+    )
+
+
+def load_frozen_dataset(
+    input_path: str | None = None,
+    labels_path: str | None = None,
+    synthetic: bool = False,
+    asset_pair: str = DEFAULT_ASSET_PAIR,
+    **synthetic_kwargs,
+) -> FrozenDataset:
+    """Dispatch to the synthetic generator or a file-backed frozen dataset.
+
+    - ``synthetic=True`` (or no `input_path`) uses `from_synthetic`.
+    - Otherwise `input_path` is a directory containing ``trades.csv`` and
+      ``labels.csv`` (as written by ``cli.py generate-data``), or a trades
+      file paired with an explicit `labels_path`.
+    """
+    if synthetic or input_path is None:
+        return from_synthetic(asset_pair=asset_pair, **synthetic_kwargs)
+
+    if os.path.isdir(input_path):
+        trades_path = os.path.join(input_path, "trades.csv")
+        resolved_labels = labels_path or os.path.join(input_path, "labels.csv")
+        events_path = os.path.join(input_path, "order_book_events.csv")
+        return from_files(trades_path, resolved_labels, events_path, asset_pair=asset_pair)
+
+    if labels_path is None:
+        raise ValueError("labels_path is required when input_path is a trades file, not a directory")
+    return from_files(input_path, labels_path, asset_pair=asset_pair)
+
+
+# ---------------------------------------------------------------------------
+# Scoring
+# ---------------------------------------------------------------------------
+
+
+def score_dataset(dataset: FrozenDataset, models: dict | None = None) -> BacktestScoring:
+    """Score every labelled wallet in `dataset` with the ensemble.
+
+    Reuses the production scoring path: `build_feature_vector` ->
+    `score_feature_matrix` -> `RiskScore.combine`. Returns aligned lists of
+    wallets, ground-truth labels, integer scores, and full `RiskScore`
+    records (in labelled-wallet order).
+    """
+    wallets = list(dataset.labels.keys())
+    if dataset.trades.empty or not wallets:
+        return BacktestScoring(wallets=[], y_true=[], y_scores=[], scores=[])
+
+    models = load_models() if models is None else models
+
+    as_of = pd.Timestamp(dataset.trades["ledger_close_time"].max())
+    events = dataset.order_book_events
+
+    feature_vectors = [
+        build_feature_vector(
+            dataset.trades,
+            wallet,
+            as_of,
+            order_book_events=(
+                events[events["account"] == wallet] if events is not None and not events.empty else None
+            ),
+            account_metadata=dataset.account_metadata,
+        )
+        for wallet in wallets
+    ]
+

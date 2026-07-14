@@ -150,6 +150,29 @@ _MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_circular_routes_tx_hash ON circular_path_routes (transaction_hash);
         """,
     ),
+    (
+        5,
+        "add wash_rings table for graph-based ring detection",
+        """
+        CREATE TABLE IF NOT EXISTS wash_rings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ring_id TEXT NOT NULL,
+            asset_pair TEXT NOT NULL,
+            members_json TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            internal_trade_count INTEGER NOT NULL,
+            internal_volume REAL NOT NULL,
+            edge_density REAL NOT NULL,
+            reciprocal_edge_ratio REAL NOT NULL,
+            cycle_count INTEGER NOT NULL,
+            longest_cycle INTEGER NOT NULL,
+            suspicion_score INTEGER NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_wash_rings_ring_id ON wash_rings (ring_id);
+        CREATE INDEX IF NOT EXISTS idx_wash_rings_asset_pair ON wash_rings (asset_pair);
+        """,
+    ),
 ]
 
 

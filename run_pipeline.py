@@ -177,6 +177,8 @@ def run(
             logger.exception("Failed to record scored features for drift detection")
 
     save_scores(scores)
+    save_wash_rings(all_rings)
+    logger.info("Detected %d wash ring(s)", len(all_rings))
 
     # Persist feature vectors and compute+cache SHAP values using XGBoost model.
     if scored_features:

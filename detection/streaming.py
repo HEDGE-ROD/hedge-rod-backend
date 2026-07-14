@@ -114,3 +114,64 @@ class HorizonStreamSource:
     def __init__(self, cursor: str = "now") -> None:
         self._cursor = cursor
 
+    def __iter__(self) -> Iterator[Trade]:
+        from ingestion.horizon_streamer import stream_trades
+
+        yield from stream_trades(cursor=self._cursor)
+
+
+# ---------------------------------------------------------------------------
+# Worker
+# ---------------------------------------------------------------------------
+
+
+def _involved_accounts(trade: Trade) -> list[str]:
+    """Return the wallet accounts to (re)score for `trade`.
+
+    Pool trades have no counterparty wallet (`counter_account is None`), so
+    only the base account is scored for those.
+    """
+    accounts = [trade.base_account]
+    if trade.counter_account is not None:
+        accounts.append(trade.counter_account)
+    return [a for a in accounts if a]
+
+
+class StreamWorker:
+    """Consume trades from a `StreamSource` and score wallets incrementally.
+
+    Per ``(wallet, asset_pair)`` a bounded buffer of recent trades is kept;
+    each incoming trade re-scores its involved wallets over that buffer and,
+    when a score meets the alert threshold, enqueues webhook alerts to
+    matching subscribers.
+    """
+
+    def __init__(
+        self,
+        source: StreamSource,
+        models: dict | None = None,
+        buffer_size: int = DEFAULT_BUFFER_SIZE,
+        score_threshold: int | None = None,
+        db_path: str | None = None,
+        enqueue_alerts: bool = True,
+        persist_scores: bool = True,
+    ) -> None:
+        self._source = source
+        self._models = models
+        self._buffer_size = buffer_size
+        self._threshold = score_threshold if score_threshold is not None else settings.risk_score_threshold
+        self._db_path = db_path
+        self._enqueue_alerts = enqueue_alerts
+        self._persist_scores = persist_scores
+
+        self._buffers: dict[str, deque[Trade]] = {}
+        self.latest_scores: dict[tuple[str, str], RiskScore] = {}
+        self._stop_event = threading.Event()
+
+    # -- model access -------------------------------------------------------
+
+    def _get_models(self) -> dict:
+        if self._models is None:
+            self._models = load_models()
+        return self._models
+

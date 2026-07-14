@@ -125,3 +125,66 @@ def build_trade_graph(trades: pd.DataFrame) -> nx.DiGraph:
 def detect_communities(graph: nx.DiGraph, min_size: int = 2) -> list[set]:
     """Partition `graph` into communities, keeping those with >= `min_size` members.
 
+    Runs greedy modularity maximisation on the undirected, weight-collapsed
+    projection. Returns a list of node sets, largest first.
+    """
+    if graph.number_of_edges() == 0:
+        return []
+
+    undirected = graph.to_undirected()
+    communities = nx.community.greedy_modularity_communities(undirected, weight="weight")
+    return [set(c) for c in communities if len(c) >= min_size]
+
+
+def find_trade_cycles(graph: nx.DiGraph, max_cycle_length: int = 6) -> list[list]:
+    """Return directed simple cycles (length 2..`max_cycle_length`) in `graph`.
+
+    Reciprocal pairs (A→B→A) count as length-2 cycles. Enumeration is bounded
+    by `max_cycle_length` and by `_MAX_CYCLES_PER_RING` to stay tractable on
+    dense clusters.
+    """
+    if graph.number_of_edges() == 0:
+        return []
+
+    try:
+        generator = nx.simple_cycles(graph, length_bound=max_cycle_length)
+    except TypeError:
+        # networkx < 3.1 has no length_bound; filter after the fact.
+        generator = (c for c in nx.simple_cycles(graph) if len(c) <= max_cycle_length)
+
+    cycles: list[list] = []
+    for cycle in generator:
+        if len(cycle) >= 2:
+            cycles.append(cycle)
+        if len(cycles) >= _MAX_CYCLES_PER_RING:
+            break
+    return cycles
+
+
+def _reciprocal_edge_ratio(subgraph: nx.DiGraph) -> float:
+    """Fraction of directed edges whose reverse edge is also present."""
+    total = subgraph.number_of_edges()
+    if total == 0:
+        return 0.0
+    mutual = sum(1 for u, v in subgraph.edges() if subgraph.has_edge(v, u))
+    return mutual / total
+
+
+def _edge_density(subgraph: nx.DiGraph) -> float:
+    """Directed edge density: present edges / n*(n-1) possible directed edges."""
+    n = subgraph.number_of_nodes()
+    if n < 2:
+        return 0.0
+    return subgraph.number_of_edges() / (n * (n - 1))
+
+
+def _score_ring(density: float, reciprocity: float, cycle_count: int) -> int:
+    """Blend density, reciprocity, and cycle presence into a 0-100 score."""
+    cycle_factor = min(cycle_count, _CYCLE_SATURATION) / _CYCLE_SATURATION
+    raw = (
+        reciprocity * _RECIPROCITY_WEIGHT
+        + cycle_factor * _CYCLE_WEIGHT
+        + density * _DENSITY_WEIGHT
+    )
+    return int(round(max(0.0, min(100.0, raw))))
+

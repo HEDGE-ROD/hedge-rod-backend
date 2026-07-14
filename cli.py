@@ -6,6 +6,8 @@ otherwise run as separate scripts/modules:
     python -m cli generate-data   # synthetic trades + labels -> CSV
     python -m cli train           # train the ensemble on synthetic data
     python -m cli score            # run the detection pipeline and store scores
+    python -m cli backtest         # score a frozen labelled window -> metrics report
+    python -m cli stream           # run the real-time streaming scorer
     python -m cli serve            # serve the local FastAPI app
     python -m cli webhook-worker   # run the webhook delivery worker
 """

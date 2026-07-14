@@ -327,6 +327,81 @@ def eval_robustness(
         typer.echo(f"⚠️  Target missed: adversarial training delta-AUC = {adv_delta:+.3f} (target > -0.10)")
 
 
+@app.command("backtest")
+def backtest(
+    threshold: int = typer.Option(70, help="Score threshold (0-100) for the precision/recall report"),
+    input_path: str = typer.Option(
+        None, "--input", help="Directory (trades.csv + labels.csv) or a trades file; omit for synthetic data"
+    ),
+    labels_path: str = typer.Option(
+        None, "--labels", help="Labels CSV/JSON of {wallet, asset_pair, is_wash}; required if --input is a file"
+    ),
+    output_dir: str = typer.Option("./backtest_reports", help="Directory to write the JSON report to"),
+    synthetic: bool = typer.Option(False, "--synthetic", help="Use the synthetic labelled generator"),
+    seed: int = typer.Option(42, help="Random seed for the synthetic generator"),
+) -> None:
+    """Backtest the ensemble against a frozen labelled trade window.
+
+    Loads a frozen dataset (synthetic generator or persisted trades + a
+    ground-truth labels file), scores every wallet with the trained
+    ensemble, and writes a precision/recall/F1/AUC-ROC/PR-AUC report to
+    ``output_dir/YYYYMMDD_HHMM.json``.
+    """
+    from detection.backtest import run_backtest
+
+    synthetic_kwargs = {"seed": seed} if (synthetic or input_path is None) else {}
+    report = run_backtest(
+        threshold=threshold,
+        input_path=input_path,
+        labels_path=labels_path,
+        output_dir=output_dir,
+        synthetic=synthetic,
+        **synthetic_kwargs,
+    )
+
+    metrics = report["metrics"]
+    typer.echo(f"Backtest over {report['n_wallets']} wallets at threshold {threshold}:")
+    typer.echo(
+        f"  precision={metrics['precision']:.3f} recall={metrics['recall']:.3f} f1={metrics['f1']:.3f}"
+    )
+    auc = metrics["auc_roc"]
+    pr_auc = metrics["pr_auc"]
+    typer.echo(
+        f"  auc_roc={'n/a' if auc is None else f'{auc:.3f}'} "
+        f"pr_auc={'n/a' if pr_auc is None else f'{pr_auc:.3f}'}"
+    )
+    cm = metrics["confusion_matrix"]
+    typer.echo(f"  confusion tp={cm['tp']} fp={cm['fp']} tn={cm['tn']} fn={cm['fn']}")
+    if report.get("report_path"):
+        typer.echo(f"Report written to {report['report_path']}")
+
+
+@app.command("stream")
+def stream(
+    cursor: str = typer.Option("now", help="Horizon paging cursor to resume from, or 'now'"),
+    threshold: int = typer.Option(None, help="Alert score threshold (defaults to RISK_SCORE_THRESHOLD)"),
+    buffer_size: int = typer.Option(500, help="Per-wallet/pair trade buffer size"),
+    max_trades: int = typer.Option(None, help="Stop after processing this many trades (default: run forever)"),
+) -> None:
+    """Run the real-time streaming scorer as a long-lived process.
+
+    Consumes trades from the live Horizon SSE stream, re-scores affected
+    wallets incrementally, and enqueues webhook alerts for high-risk scores.
+    """
+    from detection.streaming import HorizonStreamSource, StreamWorker
+
+    worker = StreamWorker(
+        HorizonStreamSource(cursor=cursor),
+        buffer_size=buffer_size,
+        score_threshold=threshold,
+    )
+    try:
+        worker.run(max_trades=max_trades)
+    except KeyboardInterrupt:
+        worker.stop()
+        logger.info("Streaming scorer interrupted; shutting down")
+
+
 @app.command("serve")
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host to bind to"),

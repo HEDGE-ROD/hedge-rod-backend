@@ -32,6 +32,7 @@ from detection.storage import (
     save_pair_correlations,
     save_path_payments,
     save_scores,
+    save_wash_rings,
 )
 from detection.shap_explainer import explain_score, top_contributing_features
 from ingestion.account_loader import async_load_account_metadata, load_account_metadata

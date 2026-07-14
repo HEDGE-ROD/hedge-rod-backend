@@ -124,3 +124,123 @@ def test_detect_communities_respects_min_size():
     communities = detect_communities(g, min_size=3)
     assert communities == []
 
+
+# ---------------------------------------------------------------------------
+# find_trade_cycles
+# ---------------------------------------------------------------------------
+
+
+def test_find_trade_cycles_detects_three_cycle():
+    trades = pd.DataFrame(
+        [
+            _trade_row("A", "B"),
+            _trade_row("B", "C"),
+            _trade_row("C", "A"),
+        ]
+    )
+    g = build_trade_graph(trades)
+    cycles = find_trade_cycles(g, max_cycle_length=5)
+    assert any(set(cycle) == {"A", "B", "C"} for cycle in cycles)
+
+
+def test_find_trade_cycles_ignores_acyclic_chain():
+    trades = pd.DataFrame([_trade_row("A", "B"), _trade_row("B", "C")])
+    g = build_trade_graph(trades)
+    assert find_trade_cycles(g, max_cycle_length=5) == []
+
+
+def test_find_trade_cycles_respects_max_length():
+    trades = pd.DataFrame(
+        [
+            _trade_row("A", "B"),
+            _trade_row("B", "C"),
+            _trade_row("C", "D"),
+            _trade_row("D", "A"),
+        ]
+    )
+    g = build_trade_graph(trades)
+    # 4-cycle excluded when max length is 3
+    assert find_trade_cycles(g, max_cycle_length=3) == []
+    assert len(find_trade_cycles(g, max_cycle_length=4)) >= 1
+
+
+# ---------------------------------------------------------------------------
+# ring_id_for
+# ---------------------------------------------------------------------------
+
+
+def test_ring_id_deterministic_and_order_independent():
+    a = ring_id_for(["A", "B", "C"], "XLM/USDC")
+    b = ring_id_for(["C", "A", "B"], "XLM/USDC")
+    assert a == b
+    assert len(a) == 8
+
+
+def test_ring_id_varies_with_asset_pair():
+    assert ring_id_for(["A", "B"], "XLM/USDC") != ring_id_for(["A", "B"], "XLM/AQUA")
+
+
+# ---------------------------------------------------------------------------
+# detect_wash_rings (orchestrator)
+# ---------------------------------------------------------------------------
+
+
+def test_detect_wash_rings_flags_dense_reciprocal_ring():
+    trades = _ring_trades(["A", "B", "C"], reps=4)
+    rings = detect_wash_rings(trades, asset_pair="XLM/USDC", min_ring_size=3)
+    assert len(rings) >= 1
+    ring = rings[0]
+    assert isinstance(ring, WashRing)
+    assert set(ring.members) == {"A", "B", "C"}
+    assert ring.cycle_count >= 1
+    assert ring.suspicion_score >= 75  # dense + reciprocal + cyclic => high
+
+
+def test_detect_wash_rings_low_signal_on_sparse_market():
+    rings = detect_wash_rings(_sparse_trades(20), asset_pair="XLM/USDC", min_ring_size=3)
+    # A sparse acyclic market should not produce high-suspicion rings.
+    assert all(r.suspicion_score < 75 for r in rings)
+
+
+def test_detect_wash_rings_empty_trades():
+    assert detect_wash_rings(pd.DataFrame(), asset_pair="XLM/USDC") == []
+
+
+def test_detect_wash_rings_reciprocity_and_density_bounds():
+    trades = _ring_trades(["A", "B", "C"], reps=2)
+    ring = detect_wash_rings(trades, asset_pair="XLM/USDC", min_ring_size=3)[0]
+    assert 0.0 <= ring.edge_density <= 1.0
+    assert 0.0 <= ring.reciprocal_edge_ratio <= 1.0
+    assert ring.size == 3
+    assert ring.internal_trade_count > 0
+
+
+# ---------------------------------------------------------------------------
+# storage round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_save_and_get_wash_rings(tmp_path):
+    from detection.storage import get_wash_rings, save_wash_rings
+
+    db = str(tmp_path / "rings.db")
+    rings = detect_wash_rings(_ring_trades(["A", "B", "C"]), asset_pair="XLM/USDC")
+    save_wash_rings(rings, db_path=db)
+
+    stored = get_wash_rings(db_path=db)
+    assert len(stored) == len(rings)
+    assert stored[0]["asset_pair"] == "XLM/USDC"
+    assert set(stored[0]["members"]) == {"A", "B", "C"}
+    assert stored[0]["suspicion_score"] >= 0
+
+
+def test_get_wash_rings_min_score_filter(tmp_path):
+    from detection.storage import get_wash_rings, save_wash_rings
+
+    db = str(tmp_path / "rings.db")
+    save_wash_rings(
+        detect_wash_rings(_ring_trades(["A", "B", "C"], reps=4), asset_pair="XLM/USDC"),
+        db_path=db,
+    )
+    high = get_wash_rings(min_score=75, db_path=db)
+    assert all(r["suspicion_score"] >= 75 for r in high)

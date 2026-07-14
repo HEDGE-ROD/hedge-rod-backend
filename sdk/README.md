@@ -105,3 +105,50 @@ Verification" section). **Always verify this before trusting a payload.**
 import { verifyWebhookSignature, isWebhookTimestampFresh } from "@hedge-rod/sdk";
 import express from "express";
 
+const app = express();
+
+app.post(
+  "/hedge-rod-webhook",
+  express.raw({ type: "application/json" }), // raw bytes — do NOT use express.json() here
+  (req, res) => {
+    const signature = req.header("X-HEDGE-ROD-Signature");
+    const timestamp = req.header("X-HEDGE-ROD-Timestamp");
+
+    if (!verifyWebhookSignature(req.body, process.env.HEDGE_ROD_WEBHOOK_SECRET!, signature)) {
+      return res.status(401).send("invalid signature");
+    }
+    if (!isWebhookTimestampFresh(timestamp)) {
+      return res.status(401).send("stale delivery"); // replay-attack guard, 5 min default window
+    }
+
+    const payload = JSON.parse(req.body.toString("utf8")); // WebhookAlertPayload
+    console.log(payload.data.wallet, payload.data.score);
+    res.status(200).end();
+  },
+);
+```
+
+**Important:** `req.body` must be the *raw, unparsed* bytes. Verifying a
+re-serialized `JSON.stringify(parsedBody)` will fail unpredictably, since
+JSON re-serialization is not guaranteed to reproduce the exact original
+byte sequence (key order, whitespace, number formatting).
+
+`verifyWebhookSignature` and `computeWebhookSignature` are built on
+`node:crypto` (`createHmac`, `timingSafeEqual`), so they require a
+Node.js-compatible runtime (Node, Deno, Bun, or an edge runtime with Node
+compat, e.g. Cloudflare Workers' `nodejs_compat` flag). The rest of the
+client (`HedgeRodClient`) is browser-safe.
+
+## Development
+
+```bash
+cd sdk
+npm install
+npm run build       # tsup -> dist/ (ESM + CJS + .d.ts)
+npm run typecheck   # tsc --noEmit
+npm test            # vitest run
+```
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

@@ -135,6 +135,11 @@ def run(
         circular_routes = detect_atomic_circular_routes(path_payments)
         save_circular_routes(circular_routes)
 
+        # Cluster-level wash-ring detection: complements the per-account scores
+        # below by flagging colluding wallet groups that individually stay under
+        # the per-wallet threshold. See detection/graph_engine.py.
+        all_rings.extend(detect_wash_rings(trades, asset_pair=pair_key))
+
         for account in accounts:
             features = build_feature_vector(
                 trades,

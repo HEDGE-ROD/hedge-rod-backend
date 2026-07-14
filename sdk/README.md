@@ -53,3 +53,55 @@ new HedgeRodClient({
 });
 ```
 
+### Error handling
+
+Every non-2xx response, timeout, or network failure throws
+`HedgeRodApiError`:
+
+```ts
+import { HedgeRodApiError } from "@hedge-rod/sdk";
+
+try {
+  await client.getWalletScores("GUNKNOWN");
+} catch (err) {
+  if (err instanceof HedgeRodApiError) {
+    console.error(err.status, err.path, err.body); // 404 "/scores/GUNKNOWN" {...}
+    console.error(err.isNetworkError); // false — the server responded
+  }
+}
+```
+
+## API coverage
+
+| Method | Endpoint |
+|---|---|
+| `getHealth()` | `GET /health` |
+| `getScores(opts?)` | `GET /scores` |
+| `getWalletScores(wallet)` | `GET /scores/{wallet}` |
+| `explainScore(wallet, assetPair)` | `GET /scores/{wallet}/explain` |
+| `getAlerts(opts?)` | `GET /alerts` |
+| `getAssetRiskRanking()` | `GET /assets/risk-ranking` |
+| `getCorrelations()` | `GET /correlations` |
+| `getPoolRisk(poolId)` | `GET /amm/pools/{pool_id}/risk` |
+| `getCircularPathPayments(opts?)` | `GET /path-payments/circular` |
+| `getRings(opts?)` | `GET /rings` |
+| `registerWebhook(body)` | `POST /webhooks` |
+| `listWebhooks()` | `GET /webhooks` |
+| `deleteWebhook(subscriberId)` | `DELETE /webhooks/{subscriber_id}` |
+| `getDeadLetters()` | `GET /webhooks/dead-letters` |
+
+`GetScoresOptions`, `GetAlertsOptions`, `GetRingsOptions`, and
+`GetCircularPathPaymentsOptions` mirror each endpoint's query parameters
+exactly (see `src/types.ts`).
+
+## Verifying webhook signatures
+
+HEDGE-ROD signs every webhook delivery with `X-HEDGE-ROD-Signature:
+sha256=<hex-digest>`, an HMAC-SHA256 of the raw request body keyed by the
+subscriber's secret (see the root README's "Webhook Alerts" → "HMAC
+Verification" section). **Always verify this before trusting a payload.**
+
+```ts
+import { verifyWebhookSignature, isWebhookTimestampFresh } from "@hedge-rod/sdk";
+import express from "express";
+

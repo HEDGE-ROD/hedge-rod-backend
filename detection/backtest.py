@@ -250,3 +250,86 @@ def score_dataset(dataset: FrozenDataset, models: dict | None = None) -> Backtes
         for wallet in wallets
     ]
 
+    batch = score_feature_matrix(models, feature_vectors)
+
+    scores: list[RiskScore] = []
+    for wallet, features, (probability, confidence) in zip(wallets, feature_vectors, batch):
+        scores.append(
+            RiskScore.combine(
+                wallet=wallet,
+                asset_pair=dataset.asset_pair,
+                benford_mad=features.get("benford_mad_24h", 0.0),
+                benford_mad_threshold=settings.benford_mad_threshold,
+                ml_probability=probability,
+                ml_confidence=confidence,
+            )
+        )
+
+    return BacktestScoring(
+        wallets=wallets,
+        y_true=[dataset.labels[w] for w in wallets],
+        y_scores=[s.score for s in scores],
+        scores=scores,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+
+
+def _safe_ranking_metrics(y_true: list[int], y_scores: list[int]) -> tuple[float | None, float | None]:
+    """Compute AUC-ROC and PR-AUC, returning `None` when undefined.
+
+    Both are undefined when only a single class is present in `y_true`.
+    """
+    if len(set(y_true)) < 2:
+        return None, None
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
+    auc_roc = float(roc_auc_score(y_true, y_scores))
+    pr_auc = float(average_precision_score(y_true, y_scores))
+    return auc_roc, pr_auc
+
+
+def compute_classification_report(
+    y_true: list[int],
+    y_scores: list[int],
+    threshold: int,
+) -> dict:
+    """Precision / recall / F1 / AUC-ROC / PR-AUC / confusion matrix.
+
+    A wallet is predicted positive when its score is ``>= threshold``.
+    `precision`, `recall`, and `f1` degrade gracefully (to ``0.0``) when a
+    denominator is zero; `auc_roc` / `pr_auc` are ``None`` when only one
+    class is present (they are threshold-independent ranking metrics).
+    """
+    y_true = [int(y) for y in y_true]
+    predictions = [1 if s >= threshold else 0 for s in y_scores]
+
+    tp = sum(1 for t, p in zip(y_true, predictions) if t == 1 and p == 1)
+    fp = sum(1 for t, p in zip(y_true, predictions) if t == 0 and p == 1)
+    tn = sum(1 for t, p in zip(y_true, predictions) if t == 0 and p == 0)
+    fn = sum(1 for t, p in zip(y_true, predictions) if t == 1 and p == 0)
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+
+    auc_roc, pr_auc = _safe_ranking_metrics(y_true, y_scores)
+
+    return {
+        "threshold": threshold,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "auc_roc": auc_roc,
+        "pr_auc": pr_auc,
+        "confusion_matrix": {"tp": tp, "fp": fp, "tn": tn, "fn": fn},
+        "support": {
+            "positives": sum(y_true),
+            "negatives": len(y_true) - sum(y_true),
+            "total": len(y_true),
+        },
+    }
+
